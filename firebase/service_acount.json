@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "hayyrly-taxi-966dc",
+  "private_key_id": "e850cbf5bc4d886d698d4f4aaa5e6dede0fd1b8d",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC+NlvbuIxAA5g3\n8lpDcKKw6yKxN1M5kmPuGGDq3OvHNdvkZdhIW0g9hnq6K/rnjY75rjLeCx1NgTg8\nji+mto4efCTf0+iBfbBMl9jxC8CyaVX1FQJbWWLITaurriINa7HdSs1OSfS9abYS\nioBZ9VM/8fvDuIkoUtbNa8rICqgiZ9hrZta9dqs0VD0q2LxV+ehQZp90Kd4CGwgH\nZuRT/bIcH8vJxDxw5G0WTq7FE+Pbwxu9WJ9mKHXFadPZgGqGV4Ig7h9frpskuhR/\nO8B5Kwdo3v1mf8WpNMFtS2xvi/PWSGE+t90yNvUqllMq4/hgOM0dYTKV4MmlTa0z\nndOoThJxAgMBAAECggEAT49FFL44S341aRFBl/vA0OdI938AnJASpEAmKZaGOCja\n9Ml0ka88pB9frgc/RyL6royiUiWr+AMYlpuSatTo1O9wLP7hvWfpGeBZqVkVHIra\nnUxQVA0rOETkjUakj6CAIONsxFZCvAc/VLoBvZ7TV2fLuq2xEOC1X+66PrnWYaz9\nDSFySk/+ilD+0CAfZQs1139pWsj5o824MZJtSVvI0CM/1ssnTStYsxNdLZW+QKg/\ng8GH2+41mZOsqGzmkvm5PIMnhpo0bwS5U2RSRRl41wN0JD0pvJdhgupWbSFeRBSe\nA0FYA3aKDIucI99LE/uKErMtBcodeDsqQuF2ZzoQ0QKBgQDoSfHtX5l0WZoBZd5S\nApLJQ05Cu45zlVOU6F1ttqMt3PILYJ2brosWy7YCFsQfHpBsJUpw9+s3NWJdB+uT\nYlB2RqZTFIcV6rW91LRQIsSZVnlA8SAhUhLwLsRubfbcFPFi46L3IXh4utYu1lK6\nVlB6UMw5iT/y6j6OMDLeIYg6xwKBgQDRoORGYpZEd70ZbcyoqXJNFe/StTkqbU7d\nZ8gjdmGhm/hex9uF5bNFy3lBf3o00lr9x6MV6VhQKMP6f08kxHflgS7YC1WW2OF7\ndeqj/MkkvNmCj0lScJkv64Ye2NQ62zNWJLKMJGgkeNADA4KlXzQ2IFJ7YAPDnrMz\nzS37dajRBwKBgHRLiRbJlP9eWK84fAzdAvZGfykD07bkXPshNp1WIe41Pu0ZSu8F\nfNdF1/LFyRy3ZaDvLozOYnG6hWuEKpoYT6ZXiq/viA4d+y12D2xLa9hFJeGwluB3\nwcmD8I5E+aGHzq4uv4kwtarkB5Vdcf+edR4303c+0shgJD91vBHgAd9DAoGAZYSf\nSB7SWtIJ99ietkdpHT+0ZrxwtMU+3iY2XEYmPdeEzpHHE+8LhI9nZ3rOuentOt2F\nc0UQCbHURumEcG/dCH4pK2NBzc22VM3kFgqDdpEmXP37KjtxVC2hRCsJjH8/O0aG\nWSwAazk+s1bt3Bxg8p1wlGMJL6EZc8q3rAFtAd0CgYAwHkDPY2MN2o7csnSoWaBz\nB2iHOhUzLfs0IqKCwES2EfnPGObvW8f+l+HPLD+AIWsiD3TuRn0z4XmUD692v407\n4mI8Dcm19k2a+1KvXOAx67W8tW70QUhNwMnFZA02Zw/LVO9cY1XlQ6Cg1QrfJ0ux\n1rn4Qnpyi4XA8izaOTKujQ==\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@hayyrly-taxi-966dc.iam.gserviceaccount.com",
+  "client_id": "115649210616095606779",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40hayyrly-taxi-966dc.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

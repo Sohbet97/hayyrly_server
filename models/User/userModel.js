@@ -1,0 +1,71 @@
+const { pool } = require('../../config/db');
+
+async function getUserById(userId) {
+    try {
+        const { rows } = await pool.query(
+            'SELECT * FROM users WHERE id = $1',
+            [userId]
+        );
+        return rows[0] || null;
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function updateuserData(userId, newData) {
+    try {
+        const { rows } = await pool.query(
+            `UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+            [newData.name, userId]
+        );
+        return rows[0] || null;
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function deleteUser(userId) {
+    try {
+        await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function createNewUser(userData) {
+    try {
+        const { rows } = await pool.query(
+            `INSERT INTO users (phone_number, firebase_uid, created_at, updated_at)
+             VALUES ($1, $2, NOW(), NOW()) RETURNING *`,
+            [userData.phone_number, userData.firebase_uid]
+        );
+        return rows[0];
+    } catch (error) {
+        throw error;
+    }
+}
+
+// Finds user by phone, creates if not exists
+async function getOrCreateUserByPhoneNumber(phone_number, firebase_uid) {
+    try {
+        const { rows } = await pool.query(
+            `INSERT INTO users (phone_number, firebase_uid, created_at, updated_at)
+             VALUES ($1, $2, NOW(), NOW())
+             ON CONFLICT (phone_number)
+             DO UPDATE SET firebase_uid = $2, updated_at = NOW()
+             RETURNING *`,
+            [phone_number, firebase_uid]
+        );
+        return rows[0];
+    } catch (error) {
+        throw error;
+    }
+}
+
+module.exports = {
+    createNewUser,
+    deleteUser,
+    updateuserData,
+    getUserById,
+    getOrCreateUserByPhoneNumber
+};
