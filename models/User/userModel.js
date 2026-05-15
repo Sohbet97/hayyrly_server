@@ -14,9 +14,15 @@ async function getUserById(userId) {
 
 async function updateuserData(userId, newData) {
     try {
+        const {
+            fullName,
+            avatar
+        } = newData;
+
         const { rows } = await pool.query(
-            `UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-            [newData.name, userId]
+            `UPDATE users SET full_name = $1, avatar = $2, updated_at = now() WHERE id = $3 
+            RETURNING * `,
+            [fullName, avatar, userId]
         );
         return rows[0] || null;
     } catch (error) {
@@ -49,12 +55,12 @@ async function createNewUser(userData) {
 async function getOrCreateUserByPhoneNumber(phone_number, firebase_uid) {
     try {
         const { rows } = await pool.query(
-            `INSERT INTO users (phone_number, firebase_uid, created_at, updated_at)
-             VALUES ($1, $2, NOW(), NOW())
-             ON CONFLICT (phone_number)
-             DO UPDATE SET firebase_uid = $2, updated_at = NOW()
+            `INSERT INTO users (phone)
+             VALUES ($1)
+             ON CONFLICT (phone)
+             DO UPDATE SET updated_at = NOW()
              RETURNING *`,
-            [phone_number, firebase_uid]
+            [phone_number]
         );
         return rows[0];
     } catch (error) {
