@@ -10,10 +10,11 @@ async function createNewCode(phone) {
         INSERT INTO otp_codes (phone, code)
         VALUES ($1, $2)
         ON CONFLICT (phone)
-        DO UPDATE SET 
-            code = EXCLUDED.code, 
+        DO UPDATE SET
+            code = EXCLUDED.code,
             created_at = NOW(),
-            is_used = false
+            is_used = false,
+            is_sended = false
         RETURNING id, code;
     `;
 

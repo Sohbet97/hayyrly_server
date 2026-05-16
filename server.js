@@ -21,12 +21,14 @@ app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 const routes = {
     userRouter: require('./routes/userRouter'),
     cityRouter: require('./routes/constants/cityRouter'),
-    addressRouter: require('./routes/addressRouter')
+    addressRouter: require('./routes/addressRouter'),
+    markaRouter: require('./routes/constants/markaRouter')
 };
 
 app.use('/api/users', routes.userRouter);
 app.use('/api/cities', routes.cityRouter);
 app.use('/api/addresses', routes.addressRouter);
+app.use('/api/cars', routes.markaRouter);
 
 // register FCM token for OTP delivery
 app.post('/api/otp/device', async (req, res) => {
@@ -83,6 +85,11 @@ const onlinePhones = new Set();
 
 io.on('connection', (socket) => {
     socket.on('register', async ({ phone, token }) => {
+        const existing = await io.in(phone).fetchSockets();
+        for (const s of existing) {
+            if (s.id !== socket.id) s.disconnect(true);
+        }
+
         socket.phone = phone;
         socket.join(phone);
         onlinePhones.add(phone);
@@ -131,6 +138,10 @@ async function startOtpListener() {
 
     client.on('notification', async (msg) => {
         const { id, phone, code } = JSON.parse(msg.payload);
+
+        const claimed = await markOtpAsSended(id);
+        if (!claimed) return;
+
         console.log('New OTP:', code, 'for', phone);
 
         let pushSent = false;
@@ -160,8 +171,7 @@ async function startOtpListener() {
             }
         }
 
-        if (pushSent) await markOtpAsSended(id);
-        else console.log('OTP was NOT sent');
+        if (!pushSent) console.log('OTP was NOT sent');
     });
 }
 
