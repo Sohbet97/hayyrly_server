@@ -9,6 +9,9 @@ const { pool, connectDB } = require('./config/db');
 require('./config/firebase');
 const { sendOtpPush, encrypt } = require('./service/push.service');
 
+const redisClient = require('./service/redisClient');
+const { initTaxiSocket } = require('./socket/taxiSocket');
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -24,12 +27,15 @@ const routes = {
     addressRouter: require('./routes/addressRouter'),
     markaRouter: require('./routes/constants/markaRouter'),
     serviceRouter: require('./routes/constants/serviceRouter'),
+    taksiRouter: require('./routes/Taksi/taksiRouter'),
+    serviceRouter: require('./routes/constants/serviceRouter'),
 };
 
 app.use('/api/users', routes.userRouter);
 app.use('/api/cities', routes.cityRouter);
 app.use('/api/addresses', routes.addressRouter);
 app.use('/api/cars', routes.markaRouter);
+app.use('/api/taksi', routes.taksiRouter);
 app.use('/api/services', routes.serviceRouter);
 
 // register FCM token for OTP delivery
@@ -86,6 +92,8 @@ app.get('/search', async (req, res) => {
 const onlinePhones = new Set();
 
 io.on('connection', (socket) => {
+    initTaxiSocket(socket);
+
     socket.on('register', async ({ phone, token }) => {
         const existing = await io.in(phone).fetchSockets();
         for (const s of existing) {
@@ -181,6 +189,13 @@ async function startOtpListener() {
 const PORT = process.env.PORT || 3000;
 
 const start = async () => {
+    try {
+        await redisClient.connect();
+        console.log('Redis Cache started');
+    } catch (err) {
+        console.warn('Redis not available:', err.message);
+    }
+    
     await connectDB();
     await startOtpListener();
     server.listen(PORT, () => console.log(`🚀 Server started on port ${PORT}`));
