@@ -22,13 +22,15 @@ const routes = {
     userRouter: require('./routes/userRouter'),
     cityRouter: require('./routes/constants/cityRouter'),
     addressRouter: require('./routes/addressRouter'),
-    markaRouter: require('./routes/constants/markaRouter')
+    markaRouter: require('./routes/constants/markaRouter'),
+    serviceRouter: require('./routes/constants/serviceRouter'),
 };
 
 app.use('/api/users', routes.userRouter);
 app.use('/api/cities', routes.cityRouter);
 app.use('/api/addresses', routes.addressRouter);
 app.use('/api/cars', routes.markaRouter);
+app.use('/api/services', routes.serviceRouter);
 
 // register FCM token for OTP delivery
 app.post('/api/otp/device', async (req, res) => {
