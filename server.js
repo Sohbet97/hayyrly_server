@@ -29,6 +29,7 @@ const routes = {
     serviceRouter: require('./routes/constants/serviceRouter'),
     taksiRouter: require('./routes/Taksi/taksiRouter'),
     serviceRouter: require('./routes/constants/serviceRouter'),
+    balanceRouter: require('./routes/balanceRouter'),
 };
 
 app.use('/api/users', routes.userRouter);
@@ -37,6 +38,7 @@ app.use('/api/addresses', routes.addressRouter);
 app.use('/api/cars', routes.markaRouter);
 app.use('/api/taksi', routes.taksiRouter);
 app.use('/api/services', routes.serviceRouter);
+app.use('/api/balance', routes.balanceRouter);
 
 // register FCM token for OTP delivery
 app.post('/api/otp/device', async (req, res) => {
