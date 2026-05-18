@@ -48,13 +48,34 @@ async function createNewTaksi(req,res) {
     
 }
 
-async function getTaksiList(req,res) { 
+async function getNearbyTaxis(req, res) {
     try {
-        
+        const { lat, lng, radius } = req.query;
+
+        if (!lat || !lng) {
+            return res.status(400).json({ status: false, message: 'lat and lng are required' });
+        }
+
+        const result = await TaksiModel.getNearbyTaxis({
+            lat:          parseFloat(lat),
+            lng:          parseFloat(lng),
+            radiusMeters: radius ? parseInt(radius) : 3000,
+        });
+
+        return res.status(200).json({ status: true, result });
     } catch (error) {
-        
+        console.error('Error getNearbyTaxis:', error);
+        return res.status(500).json({ status: false, message: 'Internal Server Error' });
     }
-    
+}
+
+async function getTaksiList(req,res) {
+    try {
+
+    } catch (error) {
+
+    }
+
 }
 
 async function deleteTaksi(req,res) { 
@@ -88,9 +109,48 @@ async function updateTaksi(req,res) {
     
 }
 
+async function getTaksiByUserId(req,res) { 
+    try {
+        
+    } catch (error) {
+        
+    }
+    
+}
+
+async function getTaksiById(req, res) { 
+    try {
+        const id = req.params.id;
+
+        if(!id) {
+            return res.status(409).json({
+                status: false, 
+                message: 'Parametrs required'
+            });
+        }
+
+        const result = await TaksiModel.getTaksiById(id);
+        return res.status(200).json({
+            status: true,
+            result
+        });
+    } catch (error) {
+        console.error('Error get By Id: ', error);
+        return res.status(500).json({
+            status: false,
+            message: 'INternal Server Error'
+        });
+        
+    }
+    
+}
+
 module.exports = {
-    createNewTaksi, 
-    getTaksiList, 
-    deleteTaksi, 
-    updateTaksi
+    createNewTaksi,
+    getNearbyTaxis,
+    getTaksiList,
+    deleteTaksi,
+    updateTaksi,
+    getTaksiByUserId,
+    getTaksiById
 };

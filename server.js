@@ -10,7 +10,7 @@ require('./config/firebase');
 const { sendOtpPush, encrypt } = require('./service/push.service');
 
 const redisClient = require('./service/redisClient');
-const { initTaxiSocket } = require('./socket/taxiSocket');
+const { initTaxiSocket, flushAndClearDebounce } = require('./socket/taxiSocket');
 
 const app = express();
 const server = http.createServer(app);
@@ -92,7 +92,7 @@ app.get('/search', async (req, res) => {
 const onlinePhones = new Set();
 
 io.on('connection', (socket) => {
-    initTaxiSocket(socket);
+    initTaxiSocket(io, socket);
 
     socket.on('register', async ({ phone, token }) => {
         const existing = await io.in(phone).fetchSockets();
@@ -115,10 +115,19 @@ io.on('connection', (socket) => {
         console.log(`📱 ${phone} connected`);
     });
 
-    socket.on('disconnect', (reason) => {
+    socket.on('disconnect', async (reason) => {
         if (socket.phone) {
             onlinePhones.delete(socket.phone);
             console.log(`🔴 ${socket.phone} offline | ${reason}`);
+        }
+
+        if (socket.data?.taxiId && socket.data?.cityId) {
+            const { taxiId, cityId } = socket.data;
+            await redisClient.hSet(`taxi:${taxiId}:meta`, { status: 'offline' });
+            await redisClient.sRem(`taxis:city:${cityId}`, `taxi_${taxiId}`);
+            io.to(`watch:city:${cityId}`).emit('taxi:status:update', { taxiId, status: 'offline' });
+            await flushAndClearDebounce(taxiId); // сохранить последнюю позицию в PG
+            console.log(`🚕 Taxi ${taxiId} went offline`);
         }
     });
 });
