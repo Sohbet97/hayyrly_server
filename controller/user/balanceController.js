@@ -101,21 +101,50 @@ async function removeBalanceInUser(req, res) {
     }
 }
 
-
-async function getBalanceInUser(req, res) { 
+async function getLogByUser(req, res) { 
     try {
+        // 1. Convert string ID to Integer
+        const userId = parseInt(req.params.id, 10);
         
+        if (isNaN(userId)) {
+            return res.status(400).json({
+                status: false,
+                message: 'Invalid user ID format'
+            });
+        }
+
+        // 2. Read from req.query (Recommended for GET requests)
+        // If you strictly use POST, you can keep req.body here
+        const {
+            startDate, endDate, sortBy, sort, limit, page
+        } = req.query; 
+
+        const filter = {
+            startDate : startDate ?? null, 
+            endDate : endDate ?? null, 
+            sortBy : sortBy ?? null, 
+            sort : sort ?? null,
+            limit: limit ? parseInt(limit, 10) : 10, 
+            page: page ? parseInt(page, 10) : 1,
+            userId : userId
+        };
+
+        // Double check your model name spelling (BalanModel vs BalanceModel)
+        const result = await BalanModel.getBalanceLogInUserId(filter);
+        
+        return res.status(200).json({
+            status: true, 
+            result
+        });
     } catch (error) {
         console.error('Error get balance in user: ', error);
         return res.status(500).json({
             status: false, 
             message: 'Internal Server Error'
         });
-        
     }
-    
 }
 
 module.exports = {
-    removeBalanceInUser, addBalanceInUSer, getBalanceInUser
+    removeBalanceInUser, addBalanceInUSer, getLogByUser
 }

@@ -3,13 +3,17 @@ const { pool } = require('../../config/db');
 async function getUserById(userId) {
     try {
         const { rows } = await pool.query(
-            'SELECT * FROM users WHERE id = $1',
+            `SELECT u.*, COALESCE(b.price, 0.0) AS balance 
+            FROM users u 
+            LEFT JOIN balance b ON u.id = b.user_id 
+            WHERE u.id = $1`,
             [userId]
         );
-        return rows[0] || null;
-    } catch (error) {
-        throw error;
-    }
+
+    return rows[0] || null;
+        } catch (error) {
+            throw error;
+        }
 }
 
 async function updateuserData(userId, newData) {
@@ -54,15 +58,21 @@ async function createNewUser(userData) {
 // Finds user by phone, creates if not exists
 async function getOrCreateUserByPhoneNumber(phone_number, firebase_uid) {
     try {
-        const { rows } = await pool.query(
-            `INSERT INTO users (phone)
-             VALUES ($1)
-             ON CONFLICT (phone)
-             DO UPDATE SET updated_at = NOW()
-             RETURNING *`,
-            [phone_number]
-        );
-        return rows[0];
+        const queryText = `
+            WITH upserted_user AS (
+                INSERT INTO users (phone)
+                VALUES ($1)
+                ON CONFLICT (phone)
+                DO UPDATE SET updated_at = NOW()
+                RETURNING *
+            )
+            SELECT u.*, COALESCE(b.price, 0.0) AS balance
+            FROM upserted_user u
+            LEFT JOIN balance b ON u.id = b.user_id;
+        `;
+
+        const { rows } = await pool.query(queryText, [phone_number]);
+        return rows[0] || null;
     } catch (error) {
         throw error;
     }
