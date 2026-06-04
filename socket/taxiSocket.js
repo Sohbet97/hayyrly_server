@@ -38,6 +38,7 @@ async function handleTaxiRegister(socket, data) {
     socket.data.role   = 'taxi';
 
     socket.join(`taxi:${taxiId}`);
+    socket.join(`taxis:city:${cityId}`); // order:new broadcasts go here
 
     await redisClient.sAdd(`taxis:city:${cityId}`, `taxi_${taxiId}`);
     await redisClient.hSet(`taxi:${taxiId}:meta`, {

@@ -1,0 +1,344 @@
+{
+  "info": {
+    "name": "Hayyrly Taxi API",
+    "_postman_id": "hayyrly-taxi-api-v1",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000/api" },
+    { "key": "order_id", "value": "1" },
+    { "key": "user_id",  "value": "1" },
+    { "key": "taxi_id",  "value": "1" },
+    { "key": "city_id",  "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Ping",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/ping"
+          }
+        },
+        {
+          "name": "Route (OSRM)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/route?start=58.3794,37.9601&end=58.4100,38.0000",
+              "query": [
+                { "key": "start", "value": "58.3794,37.9601" },
+                { "key": "end",   "value": "58.4100,38.0000" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/users/createNew",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Sohbet\",\n  \"lastName\": \"Maksadow\",\n  \"phone\": \"+99361000000\",\n  \"birthday\": \"1997-01-01\",\n  \"cityId\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Get User By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/users/{{user_id}}"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/users/{{user_id}}",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "firstName", "value": "Sohbet", "type": "text" },
+                { "key": "lastName",  "value": "Maksadow", "type": "text" },
+                { "key": "avatar",    "type": "file", "src": "" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/users/{{user_id}}"
+          }
+        },
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/users/sendCode",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+99361000000\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/users/verifyOtp",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+99361000000\",\n  \"code\": \"1234\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Register FCM Device Token",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/otp/device",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+99361000000\",\n  \"token\": \"FCM_TOKEN_HERE\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Balance",
+      "item": [
+        {
+          "name": "Add Balance",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/balance/{{user_id}}/add",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 50,\n  \"sendedUserId\": 2,\n  \"sendedName\": \"Admin\",\n  \"confirmedName\": \"Admin\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Remove Balance",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/balance/{{user_id}}/remove",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 10,\n  \"sendedUserId\": 2,\n  \"sendedName\": \"Admin\",\n  \"confirmedName\": \"Admin\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Balance Log",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/balance/{{user_id}}/log?limit=10&page=1",
+              "query": [
+                { "key": "limit", "value": "10" },
+                { "key": "page",  "value": "1" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Taxi",
+      "item": [
+        {
+          "name": "Create Taxi Driver",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/taksi/createNew",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "firstName",  "value": "Merdan",     "type": "text" },
+                { "key": "lastName",   "value": "Atayew",     "type": "text" },
+                { "key": "phone",      "value": "+99361111111","type": "text" },
+                { "key": "birthday",   "value": "1990-05-15", "type": "text" },
+                { "key": "userId",     "value": "1",          "type": "text" },
+                { "key": "cityId",     "value": "1",          "type": "text" },
+                { "key": "autoNumber", "value": "AA 123 AB",  "type": "text" },
+                { "key": "markaId",    "value": "1",          "type": "text" },
+                { "key": "modelId",    "value": "1",          "type": "text" },
+                { "key": "autoYear",   "value": "2020",       "type": "text" },
+                { "key": "avatar",     "type": "file", "src": "" },
+                { "key": "avatar",     "type": "file", "src": "" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Taxi By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/taksi/{{taxi_id}}"
+          }
+        },
+        {
+          "name": "Get Nearby Taxis",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/taksi/nearby?lat=37.9601&lng=58.3794&radius=3000",
+              "query": [
+                { "key": "lat",    "value": "37.9601" },
+                { "key": "lng",    "value": "58.3794" },
+                { "key": "radius", "value": "3000" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Taxi",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/taksi/{{taxi_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/orders",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"startAddress\": \"Bitarap Turkmenistan 123\",\n  \"endAddress\": \"Garaşsyzlyk 45\",\n  \"startLat\": 37.9601,\n  \"startLng\": 58.3794,\n  \"endLat\": 37.9750,\n  \"endLng\": 58.4100,\n  \"distanceKm\": 3.2,\n  \"paymentType\": \"cash\",\n  \"basePrice\": 12.0\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Order (no destination)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/orders",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"startAddress\": \"Bitarap Turkmenistan 123\",\n  \"startLat\": 37.9601,\n  \"startLng\": 58.3794,\n  \"paymentType\": \"cash\",\n  \"basePrice\": 0\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Order By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/orders/{{order_id}}"
+          }
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/orders/{{order_id}}/status",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\",\n  \"taxiId\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Order Logs",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/orders/{{order_id}}/logs"
+          }
+        },
+        {
+          "name": "Get Order Track",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/orders/{{order_id}}/track"
+          }
+        },
+        {
+          "name": "Get Orders By User",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/orders/user/{{user_id}}?status=completed&limit=20&page=1",
+              "query": [
+                { "key": "status",      "value": "completed" },
+                { "key": "paymentType", "value": "",    "disabled": true },
+                { "key": "limit",       "value": "20" },
+                { "key": "page",        "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Orders By Taxi",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/orders/taxi/{{taxi_id}}?limit=20&page=1",
+              "query": [
+                { "key": "status",      "value": "",    "disabled": true },
+                { "key": "paymentType", "value": "",    "disabled": true },
+                { "key": "limit",       "value": "20" },
+                { "key": "page",        "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Active Orders In City",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/orders/city/{{city_id}}/active?limit=50&page=1",
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "page",  "value": "1" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Constants",
+      "item": [
+        {
+          "name": "Get All Cities",
+          "request": { "method": "GET", "url": "{{base_url}}/cities" }
+        },
+        {
+          "name": "Get All Car Brands",
+          "request": { "method": "GET", "url": "{{base_url}}/cars" }
+        },
+        {
+          "name": "Get All Services",
+          "request": { "method": "GET", "url": "{{base_url}}/services" }
+        }
+      ]
+    }
+  ]
+}

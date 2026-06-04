@@ -11,6 +11,7 @@ const { sendOtpPush, encrypt } = require('./service/push.service');
 
 const redisClient = require('./service/redisClient');
 const { initTaxiSocket, flushAndClearDebounce } = require('./socket/taxiSocket');
+const { initOrderSocket } = require('./socket/orderSocket');
 
 const app = express();
 const server = http.createServer(app);
@@ -28,8 +29,8 @@ const routes = {
     markaRouter: require('./routes/constants/markaRouter'),
     serviceRouter: require('./routes/constants/serviceRouter'),
     taksiRouter: require('./routes/Taksi/taksiRouter'),
-    serviceRouter: require('./routes/constants/serviceRouter'),
     balanceRouter: require('./routes/balanceRouter'),
+    orderRouter: require('./routes/order/orderRouter'),
 };
 
 app.use('/api/users', routes.userRouter);
@@ -39,6 +40,7 @@ app.use('/api/cars', routes.markaRouter);
 app.use('/api/taksi', routes.taksiRouter);
 app.use('/api/services', routes.serviceRouter);
 app.use('/api/balance', routes.balanceRouter);
+app.use('/api/orders', routes.orderRouter);
 
 // register FCM token for OTP delivery
 app.post('/api/otp/device', async (req, res) => {
@@ -95,6 +97,7 @@ const onlinePhones = new Set();
 
 io.on('connection', (socket) => {
     initTaxiSocket(io, socket);
+    initOrderSocket(io, socket);
 
     socket.on('register', async ({ phone, token }) => {
         const existing = await io.in(phone).fetchSockets();
