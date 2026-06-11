@@ -7,6 +7,7 @@ const avatarUpload = uploadFactory({ baseFolder: 'taksi', fieldName: 'avatar', m
 
 router.post('/createNew', ...avatarUpload, controller.createNewTaksi);
 router.get('/nearby', controller.getNearbyTaxis);
+router.get('/user/:userId', controller.getTaksiByUserId);
 router.get('/:id', controller.getTaksiById);
 router.delete('/:id', controller.deleteTaksi);
 

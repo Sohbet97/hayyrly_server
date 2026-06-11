@@ -1,6 +1,9 @@
 const router = require('express').Router();
 const controller = require('../../controller/order/orderController');
 
+// GET    /api/orders/price                  — baha hasaplamak  ?distanceKm=&cityId=
+router.get('/price', controller.getOrderPrice);
+
 // POST   /api/orders                        — täze sargyt döretmek
 router.post('/', controller.createOrder);
 

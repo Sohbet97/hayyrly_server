@@ -1,5 +1,17 @@
 const OrderModel = require('../../models/Order/orderModel');
 
+const BASE_PRICE   = parseFloat(process.env.ORDER_BASE_PRICE)   || 10;
+const PRICE_PER_KM = parseFloat(process.env.ORDER_PRICE_PER_KM) || 2.5;
+
+async function getOrderPrice(req, res) {
+    const distanceKm = parseFloat(req.query.distanceKm);
+    if (isNaN(distanceKm) || distanceKm < 0) {
+        return res.status(400).json({ status: false, message: 'distanceKm required' });
+    }
+    const price = Math.round((BASE_PRICE + distanceKm * PRICE_PER_KM) * 100) / 100;
+    return res.json({ status: true, price });
+}
+
 async function createOrder(req, res) {
     try {
         const {
@@ -179,6 +191,7 @@ async function getOrderTrack(req, res) {
 }
 
 module.exports = {
+    getOrderPrice,
     createOrder,
     getOrderById,
     getOrdersByUser,

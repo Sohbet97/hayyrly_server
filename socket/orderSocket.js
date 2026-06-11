@@ -1,5 +1,6 @@
-const OrderModel  = require('../models/Order/orderModel');
-const redisClient = require('../service/redisClient');
+const OrderModel     = require('../models/Order/orderModel');
+const redisClient    = require('../service/redisClient');
+const smsService     = require('../service/smsService');
 
 const FREE_WAIT_MINUTES  = 3;
 const WAIT_PRICE_PER_MIN = 0.5; // TMT per minute after free period
@@ -75,6 +76,9 @@ async function handleOrderAccept(io, socket, data) {
 
     io.to(`order:${orderId}`).emit('order:accepted', { orderId, taxiId, order: updated });
 
+    smsService.sendByUserId(order.user_id, `Sargydyňyz kabul edildi. Taksi ID: ${taxiId}`)
+        .catch((e) => console.error('sms order:accepted:', e));
+
     console.log(`✅ Order ${orderId} accepted by taxi ${taxiId}`);
 }
 
@@ -88,6 +92,9 @@ async function handleOrderArrived(io, socket, data) {
     const updated = await OrderModel.updateOrderStatus(orderId, 'arrived');
 
     io.to(`order:${orderId}`).emit('order:arrived', { orderId, order: updated });
+
+    smsService.sendByUserId(updated.user_id, 'Taksiňyz geldi. Garaşýar.')
+        .catch((e) => console.error('sms order:arrived:', e));
 
     console.log(`🚗 Taxi ${taxiId} arrived for order ${orderId}`);
 }
@@ -110,6 +117,9 @@ async function handleOrderOnWay(io, socket, data) {
         orderId, waitingSeconds: waitingSec, waitingPrice, order: updated,
     });
 
+    smsService.sendByUserId(updated.user_id, `Ýola düşdüňiz. Garaşma bahasy: ${waitingPrice} TMT`)
+        .catch((e) => console.error('sms order:on_way:', e));
+
     console.log(`🛣️  Order ${orderId} on_way | wait ${waitingSec}s → ${waitingPrice} TMT`);
 }
 
@@ -131,6 +141,9 @@ async function handleOrderComplete(io, socket, data) {
     socket.data.activeOrderId = null;
 
     io.to(`order:${orderId}`).emit('order:completed', { orderId, totalPrice, order: updated });
+
+    smsService.sendByUserId(order.user_id, `Sargyt tamamlandy. Jemi: ${totalPrice} TMT`)
+        .catch((e) => console.error('sms order:completed:', e));
 
     console.log(`🏁 Order ${orderId} completed | total ${totalPrice} TMT`);
 }
@@ -167,6 +180,16 @@ async function handleOrderCancel(io, socket, data) {
                 paymentType: order.payment_type,
                 basePrice:   order.base_price,
             });
+        }
+
+        // notify passenger that driver cancelled
+        smsService.sendByUserId(order.user_id, 'Sürüji sargydy ýatyrdy. Täze taksi gözlenýär.')
+            .catch((e) => console.error('sms order:cancelled by driver:', e));
+    } else {
+        // notify driver that passenger cancelled (if order was already accepted)
+        if (order.taxi_id) {
+            smsService.sendByTaxiId(order.taxi_id, 'Müşderi sargydy ýatyrdy.')
+                .catch((e) => console.error('sms order:cancelled by user:', e));
         }
     }
 

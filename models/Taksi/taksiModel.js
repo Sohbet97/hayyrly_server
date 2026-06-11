@@ -98,21 +98,12 @@ async function deleteTaksi(taksiId) {
     }    
 }
 
-async function getTaksiByUserId(userId) { 
+async function getTaksiByUserId(userId) {
     try {
-        const query = 'SELECT * FROM taxies WHERE id = $1 LIMIT 1';
-        // Деструктурируем rows (массив результатов) из ответа pool.query
+        const query = 'SELECT * FROM app_data.taxies WHERE user_id = $1 LIMIT 1';
         const { rows } = await pool.query(query, [userId]);
-
-        // Проверяем длину массива. Если он пустой — значит такси с таким ID нет
-        if (rows.length === 0) {
-            return null;
-        }
-        
-        // Возвращаем первую найденную запись (объект такси)
-        return rows[0]; 
+        return rows[0] ?? null;
     } catch (error) {
-        // Оставляем проброс ошибки, чтобы её можно было поймать выше (например, в контроллере)
         throw error;
     }
 }

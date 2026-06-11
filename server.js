@@ -12,6 +12,8 @@ const { sendOtpPush, encrypt } = require('./service/push.service');
 const redisClient = require('./service/redisClient');
 const { initTaxiSocket, flushAndClearDebounce } = require('./socket/taxiSocket');
 const { initOrderSocket } = require('./socket/orderSocket');
+const { initSmsSocket }   = require('./socket/smsSocket');
+const smsService          = require('./service/smsService');
 
 const app = express();
 const server = http.createServer(app);
@@ -31,6 +33,7 @@ const routes = {
     taksiRouter: require('./routes/Taksi/taksiRouter'),
     balanceRouter: require('./routes/balanceRouter'),
     orderRouter: require('./routes/order/orderRouter'),
+    mapRouter:   require('./routes/mapRouter'),
 };
 
 app.use('/api/users', routes.userRouter);
@@ -41,6 +44,7 @@ app.use('/api/taksi', routes.taksiRouter);
 app.use('/api/services', routes.serviceRouter);
 app.use('/api/balance', routes.balanceRouter);
 app.use('/api/orders', routes.orderRouter);
+app.use('/api/map', routes.mapRouter);
 
 // register FCM token for OTP delivery
 app.post('/api/otp/device', async (req, res) => {
@@ -76,6 +80,7 @@ app.get('/api/route', async (req, res) => {
     }
 });
 
+
 app.get('/search', async (req, res) => {
     const { name } = req.query;
     try {
@@ -94,10 +99,12 @@ app.get('/search', async (req, res) => {
 
 // ─── Socket.IO ───────────────────────────────────────────────
 const onlinePhones = new Set();
+smsService.init(io);
 
 io.on('connection', (socket) => {
     initTaxiSocket(io, socket);
     initOrderSocket(io, socket);
+    initSmsSocket(io, socket);
 
     socket.on('register', async ({ phone, token }) => {
         const existing = await io.in(phone).fetchSockets();

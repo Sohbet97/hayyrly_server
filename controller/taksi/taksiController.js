@@ -109,13 +109,19 @@ async function updateTaksi(req,res) {
     
 }
 
-async function getTaksiByUserId(req,res) { 
+async function getTaksiByUserId(req, res) {
     try {
-        
+        const userId = parseInt(req.params.userId, 10);
+        if (isNaN(userId)) return res.status(400).json({ status: false, message: 'Invalid userId' });
+
+        const result = await TaksiModel.getTaksiByUserId(userId);
+        if (!result) return res.status(404).json({ status: false, message: 'Taksi not found' });
+
+        return res.status(200).json({ status: true, result });
     } catch (error) {
-        
+        console.error('Error getTaksiByUserId:', error);
+        return res.status(500).json({ status: false, message: 'Internal Server Error' });
     }
-    
 }
 
 async function getTaksiById(req, res) { 
