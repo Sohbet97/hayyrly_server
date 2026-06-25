@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy:        #0E2A4D;
+  --color-navy-dk:     #091E38;
+  --color-navy-mid:    #1B3A66;
+  --color-navy-soft:   #E8EEF7;
+  --color-navy-tint:   #F4F7FB;
+  --color-orange:      #F26B1F;
+  --color-orange-soft: #FFF1E6;
+  --color-orange-dk:   #C8500F;
+  --color-green:       #1B8F5A;
+  --color-green-soft:  #E5F4ED;
+  --color-amber:       #C98612;
+  --color-amber-soft:  #FCF1DA;
+  --color-red:         #C24536;
+  --color-red-soft:    #FBE8E4;
+  --color-violet:      #5B4FC9;
+  --color-violet-soft: #ECEAFB;
+  --color-ink:         #0C1828;
+  --color-body:        #3D4D63;
+  --color-muted:       #6A7689;
+  --color-faint:       #9BA6B6;
+  --color-line:        #E3E7EE;
+  --color-line-soft:   #EEF1F6;
+  --color-surface:     #FFFFFF;
+  --color-surface-2:   #F7F8FB;
+  --color-surface-3:   #F1F4F9;
+
+  --font-sans: "Manrope", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { font-family: var(--font-sans); background: #F0EEE9; }
+button { cursor: pointer; font-family: inherit; }
+input, textarea, select { font-family: inherit; }
