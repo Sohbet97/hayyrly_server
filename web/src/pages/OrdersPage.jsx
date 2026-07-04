@@ -3,28 +3,32 @@ import { Plus, Download, Search, MoreHorizontal, ChevronLeft, ChevronRight } fro
 import { AdminShell } from '../components/shell/AdminShell.jsx'
 import { StatusPill, Avatar } from '../design/atoms.jsx'
 import { TZ } from '../design/tokens.js'
-import { ORDERS, DRIVERS } from '../data/mock.js'
+import { useApi } from '../api/useApi.js'
+import { listOrders } from '../api/orders.js'
 
 const TABS = [
   { id: 'all',       label: 'Hemmesi',    fn: () => true },
-  { id: 'pending',   label: 'Garaşýar',   fn: o => o.status === 'pending' },
-  { id: 'active',    label: 'Işde',       fn: o => ['on_way','arrived','accepted'].includes(o.status) },
+  { id: 'pending',   label: 'Garaşýar',   fn: o => o.status === 'created' },
+  { id: 'active',    label: 'Işde',       fn: o => ['on_way', 'arrived', 'accepted'].includes(o.status) },
   { id: 'completed', label: 'Tamamlandy', fn: o => o.status === 'completed' },
-  { id: 'cancelled', label: 'Ýatyryldy',  fn: o => o.status === 'cancelled' },
+  { id: 'cancelled', label: 'Ýatyryldy',  fn: o => o.status === 'cancelled_by_user' || o.status === 'cancelled_by_driver' },
 ]
 const PER = 8
 
-const COLS = ['№ Sargyt', 'Müşderi', 'Ugur', 'Sürüji', 'Töleg', 'Status', 'ETA', '']
+const COLS = ['№ Sargyt', 'Müşderi', 'Ugur', 'Sürüji', 'Töleg', 'Status', 'Wagt', '']
 
 export default function OrdersPage({ shell }) {
   const [tab,    setTab]    = useState('all')
   const [search, setSearch] = useState('')
   const [pg,     setPg]     = useState(1)
 
+  const { data, loading, error } = useApi(() => listOrders({ limit: 200 }), [])
+  const orders = data?.data ?? []
+
   const tabFn    = TABS.find(t => t.id === tab)?.fn ?? (() => true)
-  const filtered = ORDERS.filter(o => {
-    const ms = !search || o.id.toLowerCase().includes(search.toLowerCase())
-                       || o.client.toLowerCase().includes(search.toLowerCase())
+  const filtered = orders.filter(o => {
+    const q = search.toLowerCase()
+    const ms = !search || String(o.id).includes(q) || (o.client_name ?? '').toLowerCase().includes(q)
     return tabFn(o) && ms
   })
   const pages = Math.max(1, Math.ceil(filtered.length / PER))
@@ -37,7 +41,7 @@ export default function OrdersPage({ shell }) {
     <AdminShell {...shell}
       active="orders"
       title="Sargytlar"
-      subtitle={`Şu gün · jemi ${ORDERS.length} sargyt`}
+      subtitle={`Şu gün · jemi ${orders.length} sargyt`}
       actions={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button type="button"
@@ -45,12 +49,6 @@ export default function OrdersPage({ shell }) {
               border: `1px solid ${TZ.line}`, borderRadius: 8, background: TZ.surface,
               fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body, cursor: 'pointer' }}>
             <Download size={13} /> Eksport
-          </button>
-          <button type="button"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-              border: 0, borderRadius: 8, background: TZ.navy, color: '#fff',
-              fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            <Plus size={13} /> Täze sargyt
           </button>
         </div>
       }
@@ -62,7 +60,7 @@ export default function OrdersPage({ shell }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: 2 }}>
             {TABS.map(t => {
-              const cnt = ORDERS.filter(t.fn).length
+              const cnt = orders.filter(t.fn).length
               const on  = t.id === tab
               return (
                 <button key={t.id} onClick={() => goTab(t.id)} type="button"
@@ -75,9 +73,7 @@ export default function OrdersPage({ shell }) {
                     color: on ? TZ.ink : TZ.muted,
                     boxShadow: on ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
                     transition: 'all 0.12s',
-                  }}
-                  onMouseEnter={e => { if (!on) e.currentTarget.style.color = TZ.body }}
-                  onMouseLeave={e => { if (!on) e.currentTarget.style.color = TZ.muted }}>
+                  }}>
                   {t.label}
                   <span style={{ fontFamily: TZ.mono, fontSize: 11, color: on ? TZ.muted : TZ.faint }}>{cnt}</span>
                 </button>
@@ -98,6 +94,10 @@ export default function OrdersPage({ shell }) {
         <div style={{ flex: 1, background: TZ.surface, border: `1px solid ${TZ.line}`, borderRadius: 12,
           overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 
+          {loading && <div style={{ padding: 16, fontFamily: TZ.sans, fontSize: 13, color: TZ.muted }}>Ýüklenýär…</div>}
+          {error && <div style={{ padding: 16, fontFamily: TZ.sans, fontSize: 13, color: TZ.red }}>{error.message}</div>}
+
+          {!loading && !error && (
           <div style={{ flex: 1, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -114,70 +114,68 @@ export default function OrdersPage({ shell }) {
               </thead>
               <tbody>
                 {paged.map(o => {
-                  const driver = DRIVERS.find(d => d.id === o.driver)
+                  const driverName = o.driver_id ? `${o.driver_first_name ?? ''} ${o.driver_last_name ?? ''}`.trim() : null
                   return (
                     <tr key={o.id}
-                      style={{ borderBottom: `1px solid ${TZ.lineSoft}`, transition: 'background 0.1s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = TZ.surface2}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      style={{ borderBottom: `1px solid ${TZ.lineSoft}`, transition: 'background 0.1s' }}>
 
                       <td style={{ padding: '13px 16px' }}>
-                        <div style={{ fontFamily: TZ.mono, fontSize: 12.5, fontWeight: 700, color: TZ.ink }}>{o.id}</div>
-                        <div style={{ fontFamily: TZ.sans, fontSize: 11, color: TZ.muted, marginTop: 2 }}>{o.created}</div>
+                        <div style={{ fontFamily: TZ.mono, fontSize: 12.5, fontWeight: 700, color: TZ.ink }}>#{o.id}</div>
+                        <div style={{ fontFamily: TZ.sans, fontSize: 11, color: TZ.muted, marginTop: 2 }}>
+                          {new Date(o.created_at).toLocaleTimeString()}
+                        </div>
                       </td>
 
                       <td style={{ padding: '13px 16px' }}>
-                        <div style={{ fontFamily: TZ.sans, fontSize: 13, fontWeight: 600, color: TZ.ink }}>{o.client}</div>
-                        <div style={{ fontFamily: TZ.mono, fontSize: 11, color: TZ.muted, marginTop: 2 }}>{o.phone}</div>
+                        <div style={{ fontFamily: TZ.sans, fontSize: 13, fontWeight: 600, color: TZ.ink }}>{o.client_name ?? '—'}</div>
+                        <div style={{ fontFamily: TZ.mono, fontSize: 11, color: TZ.muted, marginTop: 2 }}>{o.client_phone}</div>
                       </td>
 
                       <td style={{ padding: '13px 16px', maxWidth: 180 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6,
                           fontFamily: TZ.sans, fontSize: 12, color: TZ.muted }}>
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: TZ.navy, flexShrink: 0 }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.from}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.start_address}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6,
                           fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.ink, marginTop: 4 }}>
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: TZ.orange, flexShrink: 0 }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.to}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.end_address ?? '—'}</span>
                         </div>
                       </td>
 
                       <td style={{ padding: '13px 16px' }}>
-                        {driver ? (
+                        {driverName ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Avatar name={driver.name} size={26} color={driver.color} />
+                            <Avatar name={driverName} size={26} color={TZ.navy} />
                             <div>
                               <div style={{ fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.ink }}>
-                                {driver.name.split(' ')[0]}
+                                {driverName.split(' ')[0]}
                               </div>
-                              <div style={{ fontFamily: TZ.mono, fontSize: 10.5, color: TZ.muted }}>{driver.plate}</div>
+                              <div style={{ fontFamily: TZ.mono, fontSize: 10.5, color: TZ.muted }}>{o.driver_phone}</div>
                             </div>
                           </div>
                         ) : (
-                          <button type="button"
-                            style={{ display: 'flex', alignItems: 'center', gap: 4,
-                              fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.orange,
-                              background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4,
+                            fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.orange }}>
                             <Plus size={12} /> Belle
-                          </button>
+                          </span>
                         )}
                       </td>
 
                       <td style={{ padding: '13px 16px' }}>
                         <div style={{ fontFamily: TZ.sans, fontSize: 13, fontWeight: 700, color: TZ.ink }}>
-                          {o.price.toFixed(2)} T
+                          {Number(o.total_price ?? o.base_price ?? 0).toFixed(2)} T
                         </div>
                         <div style={{ fontFamily: TZ.sans, fontSize: 11, color: TZ.muted, marginTop: 2 }}>
-                          {o.distance} km
+                          {o.distance_km} km
                         </div>
                       </td>
 
                       <td style={{ padding: '13px 16px' }}><StatusPill status={o.status} /></td>
 
                       <td style={{ padding: '13px 16px', fontFamily: TZ.mono, fontSize: 12.5,
-                        fontWeight: 600, color: TZ.muted }}>{o.eta}</td>
+                        fontWeight: 600, color: TZ.muted }}>{new Date(o.created_at).toLocaleDateString()}</td>
 
                       <td style={{ padding: '13px 16px' }}>
                         <button type="button" style={{ background: 'none', border: 0, cursor: 'pointer',
@@ -188,15 +186,20 @@ export default function OrdersPage({ shell }) {
                     </tr>
                   )
                 })}
+                {paged.length === 0 && (
+                  <tr><td colSpan={8} style={{ padding: 24, textAlign: 'center', fontFamily: TZ.sans,
+                    fontSize: 12, color: TZ.faint }}>Sargyt ýok</td></tr>
+                )}
               </tbody>
             </table>
           </div>
+          )}
 
           {/* ── Pagination ── */}
           <div style={{ padding: '10px 16px', borderTop: `1px solid ${TZ.lineSoft}`, flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: TZ.sans, fontSize: 12, color: TZ.muted }}>
-              {(pg - 1) * PER + 1}–{Math.min(pg * PER, filtered.length)} / {filtered.length} sargyt
+              {filtered.length === 0 ? 0 : (pg - 1) * PER + 1}–{Math.min(pg * PER, filtered.length)} / {filtered.length} sargyt
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <PageBtn onClick={() => setPg(p => Math.max(1, p - 1))} disabled={pg === 1}>

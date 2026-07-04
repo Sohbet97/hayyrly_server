@@ -1,6 +1,7 @@
 import { Map, Package, LayoutGrid, Users, BarChart2, Settings, LogOut, Bell, Sun, Moon, Search } from 'lucide-react'
 import { TZ } from '../../design/tokens.js'
-import { ORDERS } from '../../data/mock.js'
+import { useApi } from '../../api/useApi.js'
+import { listOrders } from '../../api/orders.js'
 import hayyrlyLogo from '../../assets/hayyrly-logo.png'
 
 const MAIN_NAV = [
@@ -41,7 +42,8 @@ function NavItem({ id, label, Icon, active, badge, onClick }) {
 }
 
 function AdminSidebar({ page, setPage, user, onLogout, lang = 'tk' }) {
-  const pendingOrders = ORDERS.filter(o => o.status === 'pending').length
+  const { data } = useApi(() => listOrders({ status: 'created', limit: 1 }), [])
+  const pendingOrders = data?.total ?? 0
 
   return (
     <aside style={{ width: 232, background: TZ.surface, borderRight: `1px solid ${TZ.line}`,

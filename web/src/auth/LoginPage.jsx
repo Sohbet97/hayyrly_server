@@ -1,20 +1,30 @@
 import { useState } from 'react'
-import { Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { TZ } from '../design/tokens.js'
 import hayyrlyLogo from '../assets/hayyrly-logo.png'
+import { login } from '../api/auth.js'
 
 export default function LoginPage({ onLogin }) {
   const [phone,    setPhone]    = useState('')
   const [password, setPassword] = useState('')
-  const [role,     setRole]     = useState('admin')
   const [showPw,   setShowPw]   = useState(false)
   const [error,    setError]    = useState('')
+  const [busy,     setBusy]     = useState(false)
   const [focused,  setFocused]  = useState(null)
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault()
     if (!phone || !password) { setError('Telefon we parol hökman!'); return }
-    onLogin({ name: role === 'admin' ? 'Aman Myradow' : 'Jemal Orazowa', role, phone })
+    setError('')
+    setBusy(true)
+    try {
+      const user = await login(`+993${phone}`, password)
+      onLogin(user)
+    } catch (err) {
+      setError(err.message || 'Giriş şowsuz boldy')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const fieldStyle = (name) => ({
@@ -139,43 +149,17 @@ export default function LoginPage({ onLogin }) {
               </div>
             </div>
 
-            {/* Role */}
-            <div>
-              <label style={{ display: 'block', fontFamily: TZ.sans, fontSize: 12, fontWeight: 700,
-                color: TZ.body, marginBottom: 6, letterSpacing: 0.2 }}>Rol</label>
-              <div style={{ position: 'relative' }}>
-                <select value={role} onChange={e => setRole(e.target.value)}
-                  onFocus={() => setFocused('role')} onBlur={() => setFocused(null)}
-                  style={{ width: '100%', height: 46, appearance: 'none',
-                    padding: '0 40px 0 14px', borderRadius: 10,
-                    border: `1.5px solid ${focused === 'role' ? TZ.navy : TZ.line}`,
-                    background: focused === 'role' ? TZ.navyTint : TZ.surface,
-                    fontFamily: TZ.sans, fontSize: 14, color: TZ.ink,
-                    outline: 'none', transition: 'border-color 0.15s, background 0.15s' }}>
-                  <option value="admin">Admin</option>
-                  <option value="operator">Dispetçer (Operator)</option>
-                </select>
-                <ChevronDown size={16} style={{ position: 'absolute', right: 14,
-                  top: '50%', transform: 'translateY(-50%)', color: TZ.faint,
-                  pointerEvents: 'none' }} />
-              </div>
-            </div>
-
             {/* Submit */}
-            <button type="submit"
+            <button type="submit" disabled={busy}
               style={{ height: 48, width: '100%', borderRadius: 10, border: 0,
                 background: TZ.navy, color: '#fff', fontFamily: TZ.sans,
-                fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 4,
+                fontSize: 15, fontWeight: 700, cursor: busy ? 'default' : 'pointer', marginTop: 4,
+                opacity: busy ? 0.7 : 1,
                 transition: 'background 0.15s', letterSpacing: -0.2 }}
-              onMouseEnter={e => e.currentTarget.style.background = TZ.navyDk}
-              onMouseLeave={e => e.currentTarget.style.background = TZ.navy}>
-              Ulgama gir
+              onMouseEnter={e => { if (!busy) e.currentTarget.style.background = TZ.navyDk }}
+              onMouseLeave={e => { if (!busy) e.currentTarget.style.background = TZ.navy }}>
+              {busy ? 'Barlanýar…' : 'Ulgama gir'}
             </button>
-
-            <p style={{ textAlign: 'center', fontFamily: TZ.sans, fontSize: 12,
-              color: TZ.faint, margin: 0 }}>
-              Demo: islendik telefon / parol
-            </p>
           </form>
         </div>
       </div>

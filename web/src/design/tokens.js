@@ -71,12 +71,15 @@ export function applyTheme(mode) {
 // Status definitions
 export const STATUS = {
   pending:   { ru: 'Garaşýar',  tk: 'Garaşýar',  ck: 'muted',  bk: 'surface3' },
+  created:   { ru: 'Garaşýar',  tk: 'Garaşýar',  ck: 'muted',  bk: 'surface3' },
   assigned:  { ru: 'Bellenen',  tk: 'Bellenen',   ck: 'violet', bk: 'violetSoft' },
   accepted:  { ru: 'Kabul',     tk: 'Kabul',      ck: 'violet', bk: 'violetSoft' },
   arrived:   { ru: 'Geldi',     tk: 'Geldi',      ck: 'amber',  bk: 'amberSoft' },
   on_way:    { ru: 'Ýolda',     tk: 'Ýolda',      ck: 'navy',   bk: 'navySoft' },
   completed: { ru: 'Tamamlandy',tk: 'Tamamlandy', ck: 'green',  bk: 'greenSoft' },
-  cancelled: { ru: 'Ýatyryldy', tk: 'Ýatyryldy',  ck: 'red',    bk: 'redSoft' },
+  cancelled:           { ru: 'Ýatyryldy', tk: 'Ýatyryldy', ck: 'red', bk: 'redSoft' },
+  cancelled_by_user:   { ru: 'Ýatyryldy (müşderi)', tk: 'Ýatyryldy (müşderi)', ck: 'red', bk: 'redSoft' },
+  cancelled_by_driver: { ru: 'Ýatyryldy (sürüji)',  tk: 'Ýatyryldy (sürüji)',  ck: 'red', bk: 'redSoft' },
   online:    { ru: 'Onlaýn',    tk: 'Onlaýn',     ck: 'green',  bk: 'greenSoft' },
   busy:      { ru: 'Meşgul',    tk: 'Meşgul',     ck: 'amber',  bk: 'amberSoft' },
   offline:   { ru: 'Oflaýn',    tk: 'Oflaýn',     ck: 'muted',  bk: 'surface3' },

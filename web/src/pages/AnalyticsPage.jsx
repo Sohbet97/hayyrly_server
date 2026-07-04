@@ -1,45 +1,59 @@
 import { useState } from 'react'
-import { Download, TrendingUp, TrendingDown } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { AdminShell } from '../components/shell/AdminShell.jsx'
 import { Avatar } from '../design/atoms.jsx'
 import { TZ } from '../design/tokens.js'
-import { ANALYTICS_DAYS, DRIVERS } from '../data/mock.js'
+import { useApi } from '../api/useApi.js'
+import { dailyReport, summaryReport } from '../api/analytics.js'
 
-const RANGES = ['Şu gün', '7 gün', '14 gün', '30 gün']
-
-const MAX_BAR = Math.max(...ANALYTICS_DAYS.map(d => d.delivered + d.failed))
+const RANGES = [1, 7, 14, 30]
+const RANGE_LABELS = ['Şu gün', '7 gün', '14 gün', '30 gün']
 
 export default function AnalyticsPage({ shell }) {
   const [range, setRange] = useState(2)
+  const days = RANGES[range]
 
-  const total   = ANALYTICS_DAYS.reduce((a, d) => a + d.delivered + d.failed, 0)
-  const success = ANALYTICS_DAYS.reduce((a, d) => a + d.delivered, 0)
-  const rate    = ((success / total) * 100).toFixed(1)
+  const { data: dailyData, loading: dailyLoading, error: dailyError } = useApi(() => dailyReport(days), [days])
+  const { data: summaryData, loading: summaryLoading } = useApi(() => summaryReport({}), [])
 
-  const topDrivers = [...DRIVERS].sort((a, b) => b.orders - a.orders).slice(0, 5)
-  const maxOrders  = topDrivers[0]?.orders ?? 1
+  const analyticsDays = (dailyData?.data ?? []).map(d => ({
+    label: new Date(d.date).getDate().toString(),
+    delivered: Number(d.delivered),
+    failed: Number(d.failed),
+  }))
+  const maxBar = Math.max(1, ...analyticsDays.map(d => d.delivered + d.failed))
+
+  const summary = summaryData?.result ?? {}
+  const topDrivers = (summary.top_drivers ?? []).map(d => ({
+    id: d.id, name: `${d.first_name} ${d.last_name}`, orders: Number(d.order_count),
+  }))
+  const maxOrders = topDrivers[0]?.orders ?? 1
+
+  const total   = analyticsDays.reduce((a, d) => a + d.delivered + d.failed, 0)
+  const success = analyticsDays.reduce((a, d) => a + d.delivered, 0)
+  const rate    = total > 0 ? ((success / total) * 100).toFixed(1) : '0.0'
 
   const KPIS = [
-    { l: 'Jemi sargytlar', v: total,          d: '+18%', up: true,  accent: TZ.navy   },
-    { l: 'Üstünlik',       v: `${rate}%`,     d: '+2%',  up: true,  accent: TZ.green  },
-    { l: 'Ortaça wagt',    v: '34 min',       d: '−4 m', up: true,  accent: TZ.orange },
-    { l: 'Sürüjiler',      v: DRIVERS.length, d: '+2',   up: true,  accent: '#5B4FC9' },
+    { l: 'Jemi sargytlar', v: Number(summary.total_orders ?? total), accent: TZ.navy   },
+    { l: 'Üstünlik',       v: `${rate}%`,                            accent: TZ.green  },
+    { l: 'Girdeji',        v: `${Number(summary.revenue ?? 0).toFixed(0)} T`, accent: TZ.orange },
+    { l: 'Işjeň sürüji',   v: Number(summary.active_drivers ?? 0),   accent: '#5B4FC9' },
   ]
 
   return (
     <AdminShell {...shell}
       active="analytics"
       title="Analitika"
-      subtitle="Soňky 14 gün · 11–24 iýun 2026"
+      subtitle={`Soňky ${days} gün`}
       actions={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* Range tabs */}
           <div style={{ display: 'flex', background: TZ.surface2, border: `1px solid ${TZ.line}`,
             borderRadius: 9, padding: 3, gap: 2 }}>
-            {RANGES.map((r, i) => {
+            {RANGE_LABELS.map((label, i) => {
               const on = i === range
               return (
-                <button key={r} onClick={() => setRange(i)} type="button"
+                <button key={label} onClick={() => setRange(i)} type="button"
                   style={{
                     padding: '5px 11px', borderRadius: 7, border: 0, cursor: 'pointer',
                     fontFamily: TZ.sans, fontSize: 12, fontWeight: on ? 700 : 500,
@@ -47,7 +61,7 @@ export default function AnalyticsPage({ shell }) {
                     color: on ? '#fff' : TZ.muted,
                     transition: 'all 0.12s',
                   }}>
-                  {r}
+                  {label}
                 </button>
               )
             })}
@@ -75,16 +89,14 @@ export default function AnalyticsPage({ shell }) {
                   textTransform: 'uppercase', letterSpacing: 0.5 }}>{k.l}</span>
               </div>
               <div style={{ fontFamily: TZ.sans, fontSize: 32, fontWeight: 800, color: k.accent,
-                lineHeight: 1, marginBottom: 8 }}>{k.v}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5,
-                color: k.up ? TZ.green : TZ.red }}>
-                {k.up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                <span style={{ fontFamily: TZ.sans, fontSize: 12, fontWeight: 700 }}>{k.d}</span>
-                <span style={{ fontFamily: TZ.sans, fontSize: 12, color: TZ.muted }}>öň. döwür</span>
-              </div>
+                lineHeight: 1 }}>{k.v}</div>
             </div>
           ))}
         </div>
+        {(dailyLoading || summaryLoading) && (
+          <div style={{ fontFamily: TZ.sans, fontSize: 13, color: TZ.muted }}>Ýüklenýär…</div>
+        )}
+        {dailyError && <div style={{ fontFamily: TZ.sans, fontSize: 13, color: TZ.red }}>{dailyError.message}</div>}
 
         {/* ── Chart + top drivers ── */}
         <div style={{ display: 'grid', gap: 12, flexShrink: 0,
@@ -111,12 +123,12 @@ export default function AnalyticsPage({ shell }) {
 
             {/* Bars */}
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 180 }}>
-              {ANALYTICS_DAYS.map((d, i) => {
-                const isLast = i === ANALYTICS_DAYS.length - 1
+              {analyticsDays.map((d, i) => {
+                const isLast = i === analyticsDays.length - 1
                 const total  = d.delivered + d.failed
-                const totalH = (total / MAX_BAR) * 170
-                const failH  = (d.failed   / MAX_BAR) * 170
-                const delH   = (d.delivered / MAX_BAR) * 170
+                const totalH = (total / maxBar) * 170
+                const failH  = (d.failed   / maxBar) * 170
+                const delH   = (d.delivered / maxBar) * 170
                 return (
                   <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     {isLast && (
@@ -146,18 +158,17 @@ export default function AnalyticsPage({ shell }) {
             borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
               <span style={{ fontFamily: TZ.sans, fontSize: 14, fontWeight: 700, color: TZ.ink }}>Iň gowy sürüjiler</span>
-              <span style={{ fontFamily: TZ.sans, fontSize: 12, color: TZ.muted }}>14 gün</span>
             </div>
             {topDrivers.map((d, i) => (
               <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ width: 18, fontFamily: TZ.mono, fontSize: 12, fontWeight: 700,
                   color: TZ.faint, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
-                <Avatar name={d.name} size={30} color={d.color} />
+                <Avatar name={d.name} size={30} color={TZ.navy} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: TZ.sans, fontSize: 12.5, fontWeight: 600, color: TZ.ink,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</div>
                   <div style={{ fontFamily: TZ.sans, fontSize: 11, color: TZ.muted, marginTop: 1 }}>
-                    {d.rating} ★ · {d.orders} sargyt
+                    {d.orders} sargyt
                   </div>
                 </div>
                 <div style={{ width: 52, height: 5, borderRadius: 3, background: TZ.surface3, overflow: 'hidden', flexShrink: 0 }}>
@@ -166,6 +177,9 @@ export default function AnalyticsPage({ shell }) {
                 </div>
               </div>
             ))}
+            {topDrivers.length === 0 && (
+              <div style={{ fontFamily: TZ.sans, fontSize: 12, color: TZ.faint }}>Maglumat ýok</div>
+            )}
           </div>
         </div>
 

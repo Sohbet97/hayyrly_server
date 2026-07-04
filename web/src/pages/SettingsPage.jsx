@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { Truck, Globe, Banknote, Users, Bell, Check, Plus, MoreHorizontal, X } from 'lucide-react'
 import { AdminShell } from '../components/shell/AdminShell.jsx'
 import { TZ } from '../design/tokens.js'
-import { PRICING } from '../data/mock.js'
+import { useApi } from '../api/useApi.js'
+import { listPricing, updatePricing } from '../api/pricing.js'
+import { listTeam, createTeamMember, updateTeamMember, removeTeamMember } from '../api/team.js'
 
 const SECTIONS = [
   { id: 'company', label: 'Kompaniýa',      Icon: Truck    },
@@ -10,12 +12,6 @@ const SECTIONS = [
   { id: 'pricing', label: 'Nyrh sazlamasy', Icon: Banknote },
   { id: 'team',    label: 'Topar we rollar', Icon: Users   },
   { id: 'notif',   label: 'Habarnamalar',   Icon: Bell     },
-]
-
-const TEAM = [
-  { name: 'Aman Myradow',   role: 'admin',    email: 'aman@hayyrly.tm',   online: true  },
-  { name: 'Jemal Orazowa',  role: 'operator', email: 'jemal@hayyrly.tm',  online: true  },
-  { name: 'Serdar Nepesow', role: 'operator', email: 'serdar@hayyrly.tm', online: false },
 ]
 
 // ── Atoms ──────────────────────────────────────────────────────────────────
@@ -150,24 +146,48 @@ function SecLocale() {
 }
 
 function SecPricing() {
-  const [prices,  setPrices]  = useState(PRICING)
+  const { data, loading, error, reload } = useApi(listPricing, [])
+  const prices = data?.data ?? []
+
   const [editing, setEditing] = useState(null)
   const [form,    setForm]    = useState({})
   const [saved,   setSaved]   = useState(null)
+  const [saving,  setSaving]  = useState(false)
 
-  function startEdit(p) { setEditing(p.cityId); setForm({ ...p }) }
-  function save() {
-    setPrices(prev => prev.map(p => p.cityId === editing ? { ...form, cityId: p.cityId, city: p.city } : p))
-    setSaved(editing); setEditing(null)
-    setTimeout(() => setSaved(null), 2000)
+  function startEdit(p) {
+    setEditing(p.city_id)
+    setForm({
+      base_price: Number(p.base_price),
+      price_per_km: Number(p.price_per_km),
+      free_wait_min: Number(p.free_wait_min),
+      wait_price_min: Number(p.wait_price_min),
+    })
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      await updatePricing(editing, form)
+      setSaved(editing)
+      setEditing(null)
+      reload()
+      setTimeout(() => setSaved(null), 2000)
+    } catch (err) {
+      alert(err.message || 'Saklama şowsuz boldy')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const FIELDS = [
-    { k: 'basePrice',  l: 'Başlangyç nyrh',  unit: 'TMT' },
-    { k: 'perKm',      l: '1 km nyrhy',       unit: 'TMT' },
-    { k: 'freeWait',   l: 'Mugt garaşma',     unit: 'min' },
-    { k: 'waitPerMin', l: 'Garaşma / min',    unit: 'TMT' },
+    { k: 'base_price',     l: 'Başlangyç nyrh',  unit: 'TMT' },
+    { k: 'price_per_km',   l: '1 km nyrhy',       unit: 'TMT' },
+    { k: 'free_wait_min',  l: 'Mugt garaşma',     unit: 'min' },
+    { k: 'wait_price_min', l: 'Garaşma / min',    unit: 'TMT' },
   ]
+
+  if (loading) return <div style={{ fontFamily: TZ.sans, fontSize: 13, color: TZ.muted }}>Ýüklenýär…</div>
+  if (error)   return <div style={{ fontFamily: TZ.sans, fontSize: 13, color: TZ.red }}>{error.message}</div>
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -178,29 +198,32 @@ function SecPricing() {
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        {prices.map(p => (
-          <div key={p.cityId} style={{ border: `1px solid ${TZ.line}`, borderRadius: 12, overflow: 'hidden' }}>
+        {prices.map(p => {
+          const basePrice = Number(p.base_price)
+          const perKm     = Number(p.price_per_km)
+          return (
+          <div key={p.city_id} style={{ border: `1px solid ${TZ.line}`, borderRadius: 12, overflow: 'hidden' }}>
             {/* Card header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '12px 16px', background: TZ.surface2, borderBottom: `1px solid ${TZ.lineSoft}` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontFamily: TZ.sans, fontSize: 13.5, fontWeight: 700, color: TZ.ink }}>
-                  {p.city}
+                  {p.city?.name_tm ?? `Şäher #${p.city_id}`}
                 </span>
-                {saved === p.cityId && (
+                {saved === p.city_id && (
                   <span style={{ fontFamily: TZ.sans, fontSize: 10.5, fontWeight: 700, color: TZ.green,
                     background: TZ.greenSoft, borderRadius: 10, padding: '2px 8px' }}>✓ Saklandy</span>
                 )}
               </div>
-              {editing === p.cityId ? (
+              {editing === p.city_id ? (
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => setEditing(null)} type="button"
+                  <button onClick={() => setEditing(null)} type="button" disabled={saving}
                     style={{ padding: '5px 10px', borderRadius: 7, border: `1px solid ${TZ.line}`,
                       background: TZ.surface, fontFamily: TZ.sans, fontSize: 12, fontWeight: 600,
                       color: TZ.body, cursor: 'pointer' }}>
                     <X size={12} />
                   </button>
-                  <button onClick={save} type="button"
+                  <button onClick={save} type="button" disabled={saving}
                     style={{ padding: '5px 10px', borderRadius: 7, border: 0, background: TZ.navy,
                       color: '#fff', fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                     <Check size={12} />
@@ -218,7 +241,7 @@ function SecPricing() {
 
             {/* Card body */}
             <div style={{ padding: '12px 16px', background: TZ.surface }}>
-              {editing === p.cityId ? (
+              {editing === p.city_id ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {FIELDS.map(f => (
                     <div key={f.k}>
@@ -244,10 +267,10 @@ function SecPricing() {
               ) : (
                 <>
                   {[
-                    { l: 'Başlangyç nyrh', v: `${p.basePrice} TMT` },
-                    { l: '1 km nyrhy',     v: `${p.perKm} TMT`     },
-                    { l: 'Mugt garaşma',   v: `${p.freeWait} min`  },
-                    { l: 'Garaşma / min',  v: `${p.waitPerMin} TMT`},
+                    { l: 'Başlangyç nyrh', v: `${basePrice} TMT` },
+                    { l: '1 km nyrhy',     v: `${perKm} TMT`     },
+                    { l: 'Mugt garaşma',   v: `${Number(p.free_wait_min)} min`  },
+                    { l: 'Garaşma / min',  v: `${Number(p.wait_price_min)} TMT`},
                   ].map((r, i, arr) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between',
                       alignItems: 'center', padding: '9px 0',
@@ -260,41 +283,114 @@ function SecPricing() {
                     <div style={{ fontFamily: TZ.sans, fontSize: 10, fontWeight: 700, color: TZ.muted,
                       textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5 }}>Mysal</div>
                     <div style={{ fontFamily: TZ.sans, fontSize: 12.5, color: TZ.body, display: 'flex', gap: 16 }}>
-                      <span>3 km: <b style={{ color: TZ.ink }}>{(p.basePrice + p.perKm * 3).toFixed(2)} T</b></span>
-                      <span>5 km: <b style={{ color: TZ.ink }}>{(p.basePrice + p.perKm * 5).toFixed(2)} T</b></span>
+                      <span>3 km: <b style={{ color: TZ.ink }}>{(basePrice + perKm * 3).toFixed(2)} T</b></span>
+                      <span>5 km: <b style={{ color: TZ.ink }}>{(basePrice + perKm * 5).toFixed(2)} T</b></span>
                     </div>
                   </div>
                 </>
               )}
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   )
 }
 
 function SecTeam() {
+  const { data, loading, error, reload } = useApi(listTeam, [])
+  const team = data?.data ?? []
+
+  const [inviting, setInviting] = useState(false)
+  const [form, setForm] = useState({ name: '', phone: '', password: '', role: 'operator' })
+  const [busy, setBusy] = useState(false)
+
+  async function invite(e) {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      await createTeamMember(form)
+      setInviting(false)
+      setForm({ name: '', phone: '', password: '', role: 'operator' })
+      reload()
+    } catch (err) {
+      alert(err.message || 'Goşmak şowsuz boldy')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(m) {
+    if (!confirm(`${m.name} pozulsynmy?`)) return
+    try {
+      await removeTeamMember(m.id)
+      reload()
+    } catch (err) {
+      alert(err.message || 'Pozmak şowsuz boldy')
+    }
+  }
+
+  async function toggleActive(m) {
+    try {
+      await updateTeamMember(m.id, { is_active: !m.is_active })
+      reload()
+    } catch (err) {
+      alert(err.message || 'Üýtgetmek şowsuz boldy')
+    }
+  }
+
+  if (loading) return <div style={{ fontFamily: TZ.sans, fontSize: 13, color: TZ.muted }}>Ýüklenýär…</div>
+  if (error)   return <div style={{ fontFamily: TZ.sans, fontSize: 13, color: TZ.red }}>{error.message}</div>
+
   return (
     <div style={{ maxWidth: 580 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ fontFamily: TZ.sans, fontSize: 15, fontWeight: 700, color: TZ.ink }}>
           Topar
           <span style={{ fontFamily: TZ.sans, fontSize: 13, fontWeight: 600, color: TZ.muted, marginLeft: 6 }}>
-            · {TEAM.length}
+            · {team.length}
           </span>
         </div>
-        <button type="button"
+        <button type="button" onClick={() => setInviting(v => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
             border: `1px solid ${TZ.navy}`, borderRadius: 8, background: 'transparent',
             fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.navy, cursor: 'pointer' }}>
           <Plus size={13} /> Çagyr
         </button>
       </div>
+
+      {inviting && (
+        <form onSubmit={invite} style={{ border: `1px solid ${TZ.line}`, borderRadius: 12, padding: 14,
+          marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8, background: TZ.surface2 }}>
+          <input required placeholder="Ady" value={form.name}
+            onChange={e => setForm({ ...form, name: e.target.value })}
+            style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${TZ.line}`, fontFamily: TZ.sans, fontSize: 13 }} />
+          <input required placeholder="Telefon (+993...)" value={form.phone}
+            onChange={e => setForm({ ...form, phone: e.target.value })}
+            style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${TZ.line}`, fontFamily: TZ.sans, fontSize: 13 }} />
+          <input required type="password" placeholder="Parol" value={form.password}
+            onChange={e => setForm({ ...form, password: e.target.value })}
+            style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${TZ.line}`, fontFamily: TZ.sans, fontSize: 13 }} />
+          <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
+            style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${TZ.line}`, fontFamily: TZ.sans, fontSize: 13 }}>
+            <option value="operator">Dispetçer</option>
+            <option value="admin">Admin</option>
+          </select>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => setInviting(false)}
+              style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${TZ.line}`, background: TZ.surface,
+                fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body, cursor: 'pointer' }}>Ýap</button>
+            <button type="submit" disabled={busy}
+              style={{ padding: '7px 14px', borderRadius: 8, border: 0, background: TZ.navy, color: '#fff',
+                fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Goş</button>
+          </div>
+        </form>
+      )}
+
       <div style={{ border: `1px solid ${TZ.line}`, borderRadius: 12, overflow: 'hidden', background: TZ.surface }}>
-        {TEAM.map((m, i) => (
-          <div key={m.email} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-            borderBottom: i < TEAM.length - 1 ? `1px solid ${TZ.lineSoft}` : 'none' }}>
+        {team.map((m, i) => (
+          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+            borderBottom: i < team.length - 1 ? `1px solid ${TZ.lineSoft}` : 'none', opacity: m.is_active ? 1 : 0.55 }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div style={{ width: 38, height: 38, borderRadius: '50%', background: TZ.navy,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -303,18 +399,23 @@ function SecTeam() {
               </div>
               <span style={{ position: 'absolute', bottom: -1, right: -1, width: 11, height: 11,
                 borderRadius: '50%', border: '2px solid #fff',
-                background: m.online ? TZ.green : TZ.faint }} />
+                background: m.is_active ? TZ.green : TZ.faint }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: TZ.sans, fontSize: 13.5, fontWeight: 700, color: TZ.ink }}>{m.name}</div>
-              <div style={{ fontFamily: TZ.mono, fontSize: 11.5, color: TZ.muted, marginTop: 2 }}>{m.email}</div>
+              <div style={{ fontFamily: TZ.mono, fontSize: 11.5, color: TZ.muted, marginTop: 2 }}>{m.phone}</div>
             </div>
             <span style={{ fontFamily: TZ.sans, fontSize: 11.5, fontWeight: 700, borderRadius: 10, padding: '3px 11px',
               color: m.role === 'admin' ? TZ.orange : TZ.navy,
               background: m.role === 'admin' ? TZ.orangeSoft : TZ.navySoft }}>
               {m.role === 'admin' ? 'Admin' : 'Dispetçer'}
             </span>
-            <button type="button" style={{ background: 'none', border: 0, cursor: 'pointer',
+            <button type="button" onClick={() => toggleActive(m)}
+              style={{ background: 'none', border: `1px solid ${TZ.line}`, borderRadius: 7, cursor: 'pointer',
+                color: TZ.body, padding: '4px 8px', fontFamily: TZ.sans, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
+              {m.is_active ? 'Öçür' : 'Işjeňleşdir'}
+            </button>
+            <button type="button" onClick={() => remove(m)} style={{ background: 'none', border: 0, cursor: 'pointer',
               color: TZ.faint, padding: 2, flexShrink: 0 }}>
               <MoreHorizontal size={16} />
             </button>

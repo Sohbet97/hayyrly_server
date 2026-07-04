@@ -1,4 +1,5 @@
 const OrderModel = require('../../models/Order/orderModel');
+const { CityPricing } = require('../../db');
 
 const BASE_PRICE   = parseFloat(process.env.ORDER_BASE_PRICE)   || 10;
 const PRICE_PER_KM = parseFloat(process.env.ORDER_PRICE_PER_KM) || 2.5;
@@ -8,7 +9,20 @@ async function getOrderPrice(req, res) {
     if (isNaN(distanceKm) || distanceKm < 0) {
         return res.status(400).json({ status: false, message: 'distanceKm required' });
     }
-    const price = Math.round((BASE_PRICE + distanceKm * PRICE_PER_KM) * 100) / 100;
+
+    let basePrice = BASE_PRICE;
+    let pricePerKm = PRICE_PER_KM;
+
+    const cityId = parseInt(req.query.cityId, 10);
+    if (!isNaN(cityId)) {
+        const pricing = await CityPricing.findOne({ where: { city_id: cityId }, raw: true });
+        if (pricing) {
+            basePrice = parseFloat(pricing.base_price);
+            pricePerKm = parseFloat(pricing.price_per_km);
+        }
+    }
+
+    const price = Math.round((basePrice + distanceKm * pricePerKm) * 100) / 100;
     return res.json({ status: true, price });
 }
 

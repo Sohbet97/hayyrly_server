@@ -3,10 +3,11 @@ import { Plus, MoreHorizontal, MapPin, ArrowRight } from 'lucide-react'
 import { AdminShell } from '../components/shell/AdminShell.jsx'
 import { Avatar } from '../design/atoms.jsx'
 import { TZ, STATUS } from '../design/tokens.js'
-import { ORDERS, DRIVERS } from '../data/mock.js'
+import { useApi } from '../api/useApi.js'
+import { listOrders, updateOrderStatus } from '../api/orders.js'
 
 const COLS = [
-  { id: 'pending',   dot: TZ.muted,  accent: TZ.muted,  soft: TZ.surface3  },
+  { id: 'created',   dot: TZ.muted,  accent: TZ.muted,  soft: TZ.surface3  },
   { id: 'accepted',  dot: '#5B4FC9', accent: '#5B4FC9', soft: '#ECEAFB'    },
   { id: 'arrived',   dot: '#C98612', accent: '#C98612', soft: '#FCF1DA'    },
   { id: 'on_way',    dot: TZ.navy,   accent: TZ.navy,   soft: TZ.navySoft  },
@@ -14,7 +15,7 @@ const COLS = [
 ]
 
 const TRANSITIONS = {
-  pending:   ['accepted'],
+  created:   ['accepted'],
   accepted:  ['arrived', 'on_way'],
   arrived:   ['on_way'],
   on_way:    ['completed'],
@@ -22,10 +23,21 @@ const TRANSITIONS = {
 }
 
 export default function BoardPage({ shell }) {
-  const [orders, setOrders] = useState(ORDERS)
+  const { data, error, reload } = useApi(() => listOrders({ limit: 200 }), [])
+  const orders = data?.data ?? []
 
-  function move(id, status) {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o))
+  const [pending, setPending] = useState(null)
+
+  async function move(id, status) {
+    setPending(id)
+    try {
+      await updateOrderStatus(id, status)
+      reload()
+    } catch (err) {
+      alert(err.message || 'Status üýtgetmek şowsuz boldy')
+    } finally {
+      setPending(null)
+    }
   }
 
   return (
@@ -42,6 +54,9 @@ export default function BoardPage({ shell }) {
         </button>
       }
     >
+      {error && (
+        <div style={{ padding: 16, fontFamily: TZ.sans, fontSize: 13, color: TZ.red }}>{error.message}</div>
+      )}
       <div style={{ display: 'flex', gap: 12, height: '100%', padding: 16,
         overflowX: 'auto', overflowY: 'hidden' }}>
 
@@ -72,48 +87,51 @@ export default function BoardPage({ shell }) {
               {/* Cards */}
               <div style={{
                 flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8,
-                padding: col.id === 'pending' ? 8 : 0,
-                background: col.id === 'pending' ? TZ.surface2 : 'transparent',
-                border: col.id === 'pending' ? `1.5px dashed ${TZ.line}` : 'none',
-                borderRadius: col.id === 'pending' ? 10 : 0,
+                padding: col.id === 'created' ? 8 : 0,
+                background: col.id === 'created' ? TZ.surface2 : 'transparent',
+                border: col.id === 'created' ? `1.5px dashed ${TZ.line}` : 'none',
+                borderRadius: col.id === 'created' ? 10 : 0,
                 minHeight: 64,
               }}>
                 {items.map(o => {
-                  const driver = DRIVERS.find(d => d.id === o.driver)
+                  const driverName = o.driver_id ? `${o.driver_first_name ?? ''} ${o.driver_last_name ?? ''}`.trim() : null
                   return (
                     <div key={o.id} style={{
                       background: TZ.surface, border: `1px solid ${TZ.line}`, borderRadius: 10,
                       padding: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                       display: 'flex', flexDirection: 'column', gap: 9,
+                      opacity: pending === o.id ? 0.6 : 1,
                     }}>
                       {/* Header row */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontFamily: TZ.mono, fontSize: 11, fontWeight: 700, color: TZ.muted }}>
-                          {o.id}
+                          #{o.id}
                         </span>
-                        <span style={{ fontFamily: TZ.mono, fontSize: 10.5, color: TZ.faint }}>{o.created}</span>
+                        <span style={{ fontFamily: TZ.mono, fontSize: 10.5, color: TZ.faint }}>
+                          {new Date(o.created_at).toLocaleTimeString()}
+                        </span>
                       </div>
 
                       {/* Client */}
                       <div style={{ fontFamily: TZ.sans, fontSize: 13, fontWeight: 700, color: TZ.ink, lineHeight: 1.3 }}>
-                        {o.client}
+                        {o.client_name ?? '—'}
                       </div>
 
                       {/* Destination */}
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5,
                         fontFamily: TZ.sans, fontSize: 11.5, color: TZ.body }}>
                         <MapPin size={12} color={TZ.orange} style={{ marginTop: 1, flexShrink: 0 }} />
-                        <span style={{ lineHeight: 1.4 }}>{o.to}</span>
+                        <span style={{ lineHeight: 1.4 }}>{o.end_address ?? '—'}</span>
                       </div>
 
                       {/* Driver + price */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {driver ? (
+                        {driverName ? (
                           <>
-                            <Avatar name={driver.name} size={18} color={driver.color} />
+                            <Avatar name={driverName} size={18} color={TZ.navy} />
                             <span style={{ fontFamily: TZ.sans, fontSize: 11.5, fontWeight: 600,
                               color: TZ.body, flex: 1 }}>
-                              {driver.name.split(' ')[0]}
+                              {driverName.split(' ')[0]}
                             </span>
                           </>
                         ) : (
@@ -123,7 +141,7 @@ export default function BoardPage({ shell }) {
                           </span>
                         )}
                         <span style={{ fontFamily: TZ.sans, fontSize: 12.5, fontWeight: 700, color: TZ.ink }}>
-                          {o.price.toFixed(0)} T
+                          {Number(o.total_price ?? o.base_price ?? 0).toFixed(0)} T
                         </span>
                       </div>
 
@@ -132,7 +150,7 @@ export default function BoardPage({ shell }) {
                         <div style={{ display: 'flex', gap: 5, paddingTop: 8,
                           borderTop: `1px solid ${TZ.lineSoft}` }}>
                           {nexts.map(next => (
-                            <TransitionBtn key={next} onClick={() => move(o.id, next)}>
+                            <TransitionBtn key={next} disabled={pending === o.id} onClick={() => move(o.id, next)}>
                               <ArrowRight size={10} /> {STATUS[next]?.tk}
                             </TransitionBtn>
                           ))}
@@ -157,25 +175,15 @@ export default function BoardPage({ shell }) {
   )
 }
 
-function TransitionBtn({ children, onClick }) {
+function TransitionBtn({ children, onClick, disabled }) {
   return (
-    <button type="button" onClick={onClick}
+    <button type="button" onClick={onClick} disabled={disabled}
       style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-        padding: '5px 6px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap',
-        fontFamily: TZ.sans, fontSize: 11, fontWeight: 600,
+        padding: '5px 6px', borderRadius: 6, cursor: disabled ? 'default' : 'pointer', whiteSpace: 'nowrap',
+        fontFamily: TZ.sans, fontSize: 11, fontWeight: 600, opacity: disabled ? 0.5 : 1,
         border: `1px solid ${TZ.line}`, background: TZ.surface2, color: TZ.muted,
         transition: 'all 0.12s',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.borderColor = TZ.navy
-        e.currentTarget.style.color = TZ.navy
-        e.currentTarget.style.background = TZ.navySoft
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.borderColor = TZ.line
-        e.currentTarget.style.color = TZ.muted
-        e.currentTarget.style.background = TZ.surface2
       }}>
       {children}
     </button>

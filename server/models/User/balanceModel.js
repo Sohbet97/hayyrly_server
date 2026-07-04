@@ -1,45 +1,34 @@
-const {pool} = require('../../config/db');
+const { Op } = require('sequelize');
+const { Balance, BalanceTransaction, sequelize } = require('../../db');
+const { normalizePgError } = require('../../db/pgError');
 
-async function getBalanceInUSerId(data) {
+async function getBalanceInUSerId(userId) {
     try {
-        
+        const row = await Balance.findOne({ where: { user_id: userId }, raw: true });
+        return row?.price ?? 0;
     } catch (error) {
-        
+        throw error;
     }
 }
 
-async function getBalanceLogInUserId(filter) { 
+async function getBalanceLogInUserId(filter) {
     try {
         const {
-            userId, 
-            startDate, 
-            endDate, 
-            sort, 
+            userId,
+            startDate,
+            endDate,
+            sort,
             sortBy,
-            limit, 
-            page            
+            limit,
+            page
         } = filter;
 
-        let queryText = `
-            SELECT * FROM app_data.balance_tranzaksion 
-            WHERE (sended_user_id = $1 OR confirmed_user_id = $1)
-        `;
-        const queryParams = [userId];
-        let paramIndex = 2;
+        const where = {
+            [Op.or]: [{ sended_user_id: userId }, { confirmed_user_id: userId }],
+        };
 
-
-        if (startDate) {
-            queryText += ` AND created_at >= $${paramIndex}`;
-            queryParams.push(startDate);
-            paramIndex++;
-        }
-
-        if (endDate) {
-            queryText += ` AND created_at <= $${paramIndex}`;
-            queryParams.push(endDate);
-            paramIndex++;
-        }
-
+        if (startDate) where.created_at = { ...(where.created_at || {}), [Op.gte]: startDate };
+        if (endDate) where.created_at = { ...(where.created_at || {}), [Op.lte]: endDate };
 
         const allowedSortBy = ['created_at', 'price', 'id'];
         const allowedSort = ['ASC', 'DESC'];
@@ -47,36 +36,17 @@ async function getBalanceLogInUserId(filter) {
         const cleanSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'created_at';
         const cleanSort = allowedSort.includes(sort?.toUpperCase()) ? sort.toUpperCase() : 'DESC';
 
-        queryText += ` ORDER BY ${cleanSortBy} ${cleanSort}`;
-
         const parsedLimit = limit ? parseInt(limit, 10) : 10;
         const parsedPage = page ? parseInt(page, 10) : 1;
         const offset = (parsedPage - 1) * parsedLimit;
 
-        queryText += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-        queryParams.push(parsedLimit, offset);
-
-        const { rows } = await pool.query(queryText, queryParams);
-
-        let countQueryText = `
-            SELECT COUNT(*) FROM app_data.balance_tranzaksion 
-            WHERE (sended_user_id = $1 OR confirmed_user_id = $1)
-        `;
-        const countParams = [userId];
-        let countParamIndex = 2;
-
-        if (startDate) {
-            countQueryText += ` AND created_at >= $${countParamIndex}`;
-            countParams.push(startDate);
-            countParamIndex++;
-        }
-        if (endDate) {
-            countQueryText += ` AND created_at <= $${countParamIndex}`;
-            countParams.push(endDate);
-        }
-
-        const countResult = await pool.query(countQueryText, countParams);
-        const totalItems = parseInt(countResult.rows[0].count, 10);
+        const { rows, count: totalItems } = await BalanceTransaction.findAndCountAll({
+            where,
+            order: [[cleanSortBy, cleanSort]],
+            limit: parsedLimit,
+            offset,
+            raw: true,
+        });
 
         return {
             data: rows,
@@ -93,128 +63,97 @@ async function getBalanceLogInUserId(filter) {
         throw error;
     }
 }
-async function addBalanceInUser(data) { 
-    const client = await pool.connect();
-    
+
+async function addBalanceInUser(data) {
     try {
         const {
-            userId, 
-            price, 
-            sendedUserId, 
-            sendedName,       
-            confirmedName     
+            userId,
+            price,
+            sendedUserId,
+            sendedName,
+            confirmedName
         } = data;
 
-        await client.query('BEGIN');
+        const result = await sequelize.transaction(async (t) => {
+            const balanceRows = await sequelize.query(
+                `INSERT INTO app_data.balance (user_id, price)
+                 VALUES ($1, $2)
+                 ON CONFLICT (user_id)
+                 DO UPDATE SET price = balance.price + EXCLUDED.price
+                 RETURNING *;`,
+                { bind: [userId, price], type: sequelize.QueryTypes.SELECT, transaction: t }
+            );
 
-        const balanceQuery = `
-            INSERT INTO app_data.balance (user_id, price) 
-            VALUES ($1, $2) 
-            ON CONFLICT (user_id) 
-            DO UPDATE SET price = balance.price + EXCLUDED.price
-            RETURNING *;
-        `;
-        const balanceValues = [userId, price];
-        const balanceResult = await client.query(balanceQuery, balanceValues);
+            await sequelize.query(
+                `INSERT INTO app_data.balance_tranzaksion (
+                    sended_user_id,
+                    confirmed_user_id,
+                    sended_name,
+                    confirmed_name,
+                    price, is_added
+                )
+                VALUES ($1, $2, $3, $4, $5, $6);`,
+                { bind: [sendedUserId, userId, sendedName, confirmedName, price, true], transaction: t }
+            );
 
-        const logQuery = `
-            INSERT INTO app_data.balance_tranzaksion (
-                sended_user_id, 
-                confirmed_user_id, 
-                sended_name, 
-                confirmed_name, 
-                price, is_added
-            ) 
-            VALUES ($1, $2, $3, $4, $5, $6);
-        `;
-        const logValues = [
-            sendedUserId, 
-            userId, 
-            sendedName, 
-            confirmedName, 
-            price,
-            true
-        ];
-        await client.query(logQuery, logValues);
+            return balanceRows[0];
+        });
 
-        await client.query('COMMIT');
-        
-        return balanceResult.rows[0];
+        return result;
     } catch (error) {
-        await client.query('ROLLBACK');
-
-       
-
         throw error;
-    } finally {
-        client.release();
     }
 }
 
 async function removeBalanceInUSer(data) {
-    const client = await pool.connect();
-    
     try {
         const {
-            userId, 
-            price, 
-            sendedUserId, 
-            sendedName,       
-            confirmedName     
+            userId,
+            price,
+            sendedUserId,
+            sendedName,
+            confirmedName
         } = data;
 
-        await client.query('BEGIN');
+        const result = await sequelize.transaction(async (t) => {
+            const balanceRows = await sequelize.query(
+                `INSERT INTO app_data.balance (user_id, price)
+                 VALUES ($1, $2)
+                 ON CONFLICT (user_id)
+                 DO UPDATE SET price = balance.price - EXCLUDED.price
+                 RETURNING *;`,
+                { bind: [userId, price], type: sequelize.QueryTypes.SELECT, transaction: t }
+            );
 
-        const balanceQuery = `
-            INSERT INTO app_data.balance (user_id, price) 
-            VALUES ($1, $2) 
-            ON CONFLICT (user_id) 
-            DO UPDATE SET price = balance.price - EXCLUDED.price
-            RETURNING *;
-        `;
-        const balanceValues = [userId, price];
-        const balanceResult = await client.query(balanceQuery, balanceValues);
+            await sequelize.query(
+                `INSERT INTO app_data.balance_tranzaksion (
+                    sended_user_id,
+                    confirmed_user_id,
+                    sended_name,
+                    confirmed_name,
+                    price, is_added
+                )
+                VALUES ($1, $2, $3, $4, $5, $6);`,
+                { bind: [sendedUserId, userId, sendedName, confirmedName, price, false], transaction: t }
+            );
 
-        const logQuery = `
-            INSERT INTO app_data.balance_tranzaksion (
-                sended_user_id, 
-                confirmed_user_id, 
-                sended_name, 
-                confirmed_name, 
-                price, is_added
-            ) 
-            VALUES ($1, $2, $3, $4, $5, $6);
-        `;
-        const logValues = [
-            sendedUserId, 
-            userId, 
-            sendedName, 
-            confirmedName, 
-            price,
-            false
-        ];
-        await client.query(logQuery, logValues);
+            return balanceRows[0];
+        });
 
-        await client.query('COMMIT');
-        
-        return balanceResult.rows[0];
+        return result;
     } catch (error) {
-        await client.query('ROLLBACK');
+        const normalized = normalizePgError(error);
 
-        if (error.code === '23514') {
-        throw new Error('Операция отклонена: недостаточно средств на балансе.');
+        if (normalized.code === '23514') {
+            throw new Error('Операция отклонена: недостаточно средств на балансе.');
+        }
+
+        throw normalized;
     }
 
-       
-
-        throw error;
-    } finally {
-        client.release();
-    }
-    
 }
 
 module.exports = {
-    addBalanceInUser, removeBalanceInUSer, 
+    addBalanceInUser, removeBalanceInUSer,
     getBalanceInUSerId, getBalanceLogInUserId
 }

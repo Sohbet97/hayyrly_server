@@ -1,19 +1,19 @@
-const { pool } = require('../../config/db');
+const { User, sequelize } = require('../../db');
 
 async function getUserById(userId) {
     try {
-        const { rows } = await pool.query(
-            `SELECT u.*, COALESCE(b.price, 0.0) AS balance 
-            FROM users u 
-            LEFT JOIN balance b ON u.id = b.user_id 
+        const rows = await sequelize.query(
+            `SELECT u.*, COALESCE(b.price, 0.0) AS balance
+            FROM users u
+            LEFT JOIN balance b ON u.id = b.user_id
             WHERE u.id = $1`,
-            [userId]
+            { bind: [userId], type: sequelize.QueryTypes.SELECT }
         );
 
-    return rows[0] || null;
-        } catch (error) {
-            throw error;
-        }
+        return rows[0] || null;
+    } catch (error) {
+        throw error;
+    }
 }
 
 async function updateuserData(userId, newData) {
@@ -23,12 +23,11 @@ async function updateuserData(userId, newData) {
             avatar
         } = newData;
 
-        const { rows } = await pool.query(
-            `UPDATE users SET full_name = $1, avatar = $2, updated_at = now() WHERE id = $3 
-            RETURNING * `,
-            [fullName, avatar, userId]
+        const [, rows] = await User.update(
+            { full_name: fullName, avatar, updated_at: sequelize.literal('NOW()') },
+            { where: { id: userId }, returning: true }
         );
-        return rows[0] || null;
+        return rows[0]?.get({ plain: true }) || null;
     } catch (error) {
         throw error;
     }
@@ -36,7 +35,7 @@ async function updateuserData(userId, newData) {
 
 async function deleteUser(userId) {
     try {
-        await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+        await User.destroy({ where: { id: userId } });
     } catch (error) {
         throw error;
     }
@@ -44,12 +43,13 @@ async function deleteUser(userId) {
 
 async function createNewUser(userData) {
     try {
-        const { rows } = await pool.query(
-            `INSERT INTO users (phone_number, firebase_uid, created_at, updated_at)
-             VALUES ($1, $2, NOW(), NOW()) RETURNING *`,
-            [userData.phone_number, userData.firebase_uid]
-        );
-        return rows[0];
+        const row = await User.create({
+            phone_number: userData.phone_number,
+            firebase_uid: userData.firebase_uid,
+            created_at: sequelize.literal('NOW()'),
+            updated_at: sequelize.literal('NOW()'),
+        });
+        return row.get({ plain: true });
     } catch (error) {
         throw error;
     }
@@ -58,8 +58,8 @@ async function createNewUser(userData) {
 // Finds user by phone, creates if not exists
 async function getOrCreateUserByPhoneNumber(phone_number, firebase_uid) {
     try {
-        const queryText = `
-            WITH upserted_user AS (
+        const rows = await sequelize.query(
+            `WITH upserted_user AS (
                 INSERT INTO users (phone)
                 VALUES ($1)
                 ON CONFLICT (phone)
@@ -68,10 +68,10 @@ async function getOrCreateUserByPhoneNumber(phone_number, firebase_uid) {
             )
             SELECT u.*, COALESCE(b.price, 0.0) AS balance
             FROM upserted_user u
-            LEFT JOIN balance b ON u.id = b.user_id;
-        `;
+            LEFT JOIN balance b ON u.id = b.user_id;`,
+            { bind: [phone_number], type: sequelize.QueryTypes.SELECT }
+        );
 
-        const { rows } = await pool.query(queryText, [phone_number]);
         return rows[0] || null;
     } catch (error) {
         throw error;

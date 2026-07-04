@@ -26,11 +26,14 @@ export function HayyrlyLockup({ size = 40 }) {
 // ── Status Pill ───────────────────────────────────────────────────────────────
 const PILL_CLS = {
   pending:   { wrap: 'bg-surface-3 text-muted',       dot: 'bg-muted'   },
+  created:   { wrap: 'bg-surface-3 text-muted',       dot: 'bg-muted'   },
   accepted:  { wrap: 'bg-violet-soft text-violet',    dot: 'bg-violet'  },
   arrived:   { wrap: 'bg-amber-soft text-amber',      dot: 'bg-amber'   },
   on_way:    { wrap: 'bg-navy-soft text-navy',        dot: 'bg-navy'    },
   completed: { wrap: 'bg-green-soft text-green',      dot: 'bg-green'   },
-  cancelled: { wrap: 'bg-red-soft text-red',          dot: 'bg-red'     },
+  cancelled:           { wrap: 'bg-red-soft text-red', dot: 'bg-red'    },
+  cancelled_by_user:   { wrap: 'bg-red-soft text-red', dot: 'bg-red'    },
+  cancelled_by_driver: { wrap: 'bg-red-soft text-red', dot: 'bg-red'    },
   online:    { wrap: 'bg-green-soft text-green',      dot: 'bg-green'   },
   busy:      { wrap: 'bg-amber-soft text-amber',      dot: 'bg-amber'   },
   offline:   { wrap: 'bg-surface-3 text-faint',       dot: 'bg-faint'   },

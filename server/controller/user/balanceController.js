@@ -101,7 +101,22 @@ async function removeBalanceInUser(req, res) {
     }
 }
 
-async function getLogByUser(req, res) { 
+async function getBalanceInUserId(req, res) {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) {
+            return res.status(400).json({ status: false, message: 'Invalid user ID format' });
+        }
+
+        const price = await BalanModel.getBalanceInUSerId(userId);
+        return res.status(200).json({ status: true, result: { userId, price } });
+    } catch (error) {
+        console.error('Error get balance for user: ', error);
+        return res.status(500).json({ status: false, message: 'Internal Server Error' });
+    }
+}
+
+async function getLogByUser(req, res) {
     try {
         // 1. Convert string ID to Integer
         const userId = parseInt(req.params.id, 10);
@@ -146,5 +161,5 @@ async function getLogByUser(req, res) {
 }
 
 module.exports = {
-    removeBalanceInUser, addBalanceInUSer, getLogByUser
+    removeBalanceInUser, addBalanceInUSer, getLogByUser, getBalanceInUserId
 }
