@@ -2,9 +2,9 @@ const { CityPricing, City } = require('../../../db');
 
 class PricingService {
     static async list() {
-        const rows = await CityPricing.findAll({
-            include: [{ model: City, as: 'city', attributes: ['id', 'name_tm', 'name_ru', 'name_en'] }],
-            order: [['city_id', 'ASC']],
+        const rows = await City.findAll({
+            include: [{ model: CityPricing, as: 'pricing', required: false }],
+            order: [['name_tm', 'ASC']],
         });
         return rows.map((r) => r.get({ plain: true }));
     }

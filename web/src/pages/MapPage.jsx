@@ -1,32 +1,41 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { RefreshCw, MapPin, X, Plus } from 'lucide-react'
+import { RefreshCw, MapPin, X } from 'lucide-react'
 import { AdminShell } from '../components/shell/AdminShell.jsx'
 import LiveMap, { fetchLayers } from '../components/map/LiveMap.jsx'
 import { StatusPill, Avatar } from '../design/atoms.jsx'
-import { TZ } from '../design/tokens.js'
+import { AssignDriverMenu } from '../components/orders/AssignDriverMenu.jsx'
+import { useTZ } from '../design/tokens.js'
 import { useApi } from '../api/useApi.js'
 import { listDrivers } from '../api/drivers.js'
-import { listOrders } from '../api/orders.js'
+import { listOrders, assignDriver } from '../api/orders.js'
 import { getSocket, watchCity, unwatchCity, requestCityTaxis } from '../api/socket.js'
-
-const FILTERS = ['Hemmesi', 'Işde', 'Garaşýar', 'Oflaýn']
-
-const LEGEND = [
-  { c: TZ.navy,   l: 'Ýolda'  },
-  { c: TZ.amber,  l: 'Geldi'  },
-  { c: '#5B4FC9', l: 'Kabul'  },
-  { c: TZ.green,  l: 'Boş'    },
-  { c: TZ.faint,  l: 'Oflaýn' },
-]
+import { useT } from '../i18n/useT.js'
 
 const ACTIVE_ORDER_STATUSES = ['created', 'on_way', 'arrived', 'accepted']
 
 export default function MapPage({ shell }) {
-  const [filter,  setFilter]  = useState('Hemmesi')
+  const TZ = useTZ()
+  const t = useT()
+  const FILTERS = [
+    { id: 'all',     label: t('map.filterAll') },
+    { id: 'active',  label: t('map.filterActive') },
+    { id: 'waiting', label: t('map.filterWaiting') },
+    { id: 'offline', label: t('map.filterOffline') },
+  ]
+  const LEGEND = [
+    { c: TZ.navy,   l: t('map.legendOnWay')  },
+    { c: TZ.amber,  l: t('map.legendArrived') },
+    { c: '#5B4FC9', l: t('map.legendAccepted') },
+    { c: TZ.green,  l: t('map.legendFree')    },
+    { c: TZ.faint,  l: t('map.legendOffline') },
+  ]
+  const [filter,  setFilter]  = useState('all')
   const [focusId, setFocusId] = useState(null)
+  const [selectedOrderId, setSelectedOrderId] = useState(null)
   const [layers,  setLayers]  = useState([])
   const [layer,   setLayer]   = useState('')
   const [positions, setPositions] = useState({}) // taxiId -> { lat, lng, status }
+  const [assigning, setAssigning] = useState(null)
 
   const { data: driversData, reload: reloadDrivers } = useApi(() => listDrivers({ limit: 200 }), [])
   const { data: ordersData,  reload: reloadOrders  } = useApi(() => listOrders({ limit: 200 }), [])
@@ -96,30 +105,55 @@ export default function MapPage({ shell }) {
       id: o.id, client: o.client_name, from: o.start_address, to: o.end_address,
       price: o.total_price ?? o.base_price, status: o.status,
       lat: o.start_lat, lng: o.start_lng,
+      startLat: o.start_lat, startLng: o.start_lng,
+      endLat: o.end_lat, endLng: o.end_lng,
       driverId: o.driver_id,
     }))
 
   const fd = liveDrivers.find(d => d.id === focusId)
-  const fo = fd ? liveOrders.find(o => o.driverId === fd.id) : null
+  const fo = liveOrders.find(o => o.id === selectedOrderId)
+    ?? (fd ? liveOrders.find(o => o.driverId === fd.id) : null)
+
+  const FILTER_MATCH = {
+    all:     () => true,
+    active:  s => ['on_way', 'arrived', 'accepted'].includes(s),
+    waiting: s => s === 'online',
+    offline: s => s === 'offline',
+  }
+  const mapDrivers = liveDrivers.filter(d => (FILTER_MATCH[filter] ?? FILTER_MATCH.all)(d.status))
 
   const online  = liveDrivers.filter(d => d.status !== 'offline').length
   const inTrip  = liveDrivers.filter(d => d.status === 'on_way').length
   const active  = liveOrders.filter(o => ['on_way', 'arrived', 'accepted'].includes(o.status)).length
   const pending = liveOrders.filter(o => o.status === 'created').length
 
+  const driverOptions = liveDrivers.map(d => ({ id: d.id, name: d.name, online: d.status !== 'offline' }))
+
+  async function assign(orderId, taxiId) {
+    setAssigning(orderId)
+    try {
+      await assignDriver(orderId, taxiId)
+      reloadOrders()
+    } catch (err) {
+      alert(err.message || t('common.assignError'))
+    } finally {
+      setAssigning(null)
+    }
+  }
+
   function refresh() { reloadDrivers(); reloadOrders() }
 
   return (
     <AdminShell {...shell}
       active="map"
-      title="Janly Karta"
-      subtitle={`${online} nobatda · ${active} ýolda · ${pending} garaşýar`}
+      title={t('map.title')}
+      subtitle={`${online} ${t('map.subtitleWaiting')} · ${active} ${t('map.subtitleOnWay')} · ${pending} ${t('map.subtitlePending')}`}
       actions={
         <button type="button" onClick={refresh}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
             border: `1px solid ${TZ.line}`, borderRadius: 8, background: TZ.surface,
             fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body, cursor: 'pointer' }}>
-          <RefreshCw size={13} /> Täzele
+          <RefreshCw size={13} /> {t('map.refresh')}
         </button>
       }
     >
@@ -131,9 +165,9 @@ export default function MapPage({ shell }) {
           {/* Filter chips */}
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 1000, display: 'flex', gap: 6 }}>
             {FILTERS.map(f => {
-              const on = f === filter
+              const on = f.id === filter
               return (
-                <button key={f} onClick={() => setFilter(f)} type="button"
+                <button key={f.id} onClick={() => setFilter(f.id)} type="button"
                   style={{
                     padding: '6px 14px', borderRadius: 20,
                     fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, cursor: 'pointer',
@@ -143,15 +177,15 @@ export default function MapPage({ shell }) {
                     color: on ? '#fff' : TZ.body,
                     boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
                   }}>
-                  {f}
+                  {f.label}
                 </button>
               )
             })}
 
             {/* Layer / table inspector */}
-            <select value={layer} onChange={e => setLayer(e.target.value)}
+            {/* <select value={layer} onChange={e => setLayer(e.target.value)}
               disabled={layers.length === 0}
-              title="Debug: gatlak / tablisa görkez"
+              title={t('map.layerDebugTitle')}
               style={{
                 padding: '6px 12px', borderRadius: 20,
                 fontFamily: TZ.sans, fontSize: 12, fontWeight: 600,
@@ -163,10 +197,10 @@ export default function MapPage({ shell }) {
                 opacity: layers.length === 0 ? 0.7 : 1,
               }}>
               <option value="">
-                {layers.length === 0 ? 'Gatlak tapylmady' : 'Gatlak görkez…'}
+                {layers.length === 0 ? t('map.layerNone') : t('map.layerPick')}
               </option>
               {layers.map(l => <option key={l} value={l}>{l}</option>)}
-            </select>
+            </select> */}
           </div>
 
           {/* Legend */}
@@ -176,7 +210,7 @@ export default function MapPage({ shell }) {
             border: `1px solid ${TZ.line}`, boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
           }}>
             <div style={{ fontFamily: TZ.sans, fontSize: 10, fontWeight: 700, color: TZ.muted,
-              textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Bellik</div>
+              textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{t('map.legendTitle')}</div>
             {LEGEND.map(({ c, l }) => (
               <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
@@ -185,7 +219,7 @@ export default function MapPage({ shell }) {
             ))}
           </div>
 
-          <LiveMap debugLayer={layer} drivers={liveDrivers} orders={liveOrders} />
+          <LiveMap debugLayer={layer} drivers={mapDrivers} orders={liveOrders} selectedOrder={fo} />
         </div>
 
         {/* ── Right rail ── */}
@@ -197,10 +231,10 @@ export default function MapPage({ shell }) {
           {/* KPI tiles */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: `1px solid ${TZ.line}` }}>
             {[
-              { l: 'Nobatda',  v: online,  c: TZ.green  },
-              { l: 'Ýolda',    v: inTrip,  c: TZ.navy   },
-              { l: 'Sargyt',   v: active,  c: '#5B4FC9' },
-              { l: 'Garaşýar', v: pending, c: TZ.orange },
+              { l: t('map.kpiWaiting'), v: online,  c: TZ.green  },
+              { l: t('map.kpiOnWay'),   v: inTrip,  c: TZ.navy   },
+              { l: t('map.kpiOrders'),  v: active,  c: '#5B4FC9' },
+              { l: t('map.kpiPending'), v: pending, c: TZ.orange },
             ].map((k, i) => (
               <div key={i} style={{
                 padding: '14px 16px',
@@ -231,7 +265,7 @@ export default function MapPage({ shell }) {
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fd.name}</div>
                   <div style={{ fontFamily: TZ.mono, fontSize: 11, color: TZ.muted, marginTop: 1 }}>{fd.plate}</div>
                 </div>
-                <button onClick={() => setFocusId(null)} type="button"
+                <button onClick={() => { setFocusId(null); setSelectedOrderId(null) }} type="button"
                   style={{ background: 'transparent', border: 0, color: TZ.faint, cursor: 'pointer', padding: 2, flexShrink: 0 }}>
                   <X size={14} />
                 </button>
@@ -252,7 +286,7 @@ export default function MapPage({ shell }) {
           ) : (
             <div style={{ padding: '18px 16px', borderBottom: `1px solid ${TZ.line}`,
               textAlign: 'center', fontFamily: TZ.sans, fontSize: 12, color: TZ.faint, flexShrink: 0 }}>
-              Sürüjini saýlamak üçin kartada basyň
+              {t('map.pickDriverHint')}
             </div>
           )}
 
@@ -263,21 +297,22 @@ export default function MapPage({ shell }) {
               color: TZ.muted, textTransform: 'uppercase', letterSpacing: 1,
               position: 'sticky', top: 0, background: TZ.surface, borderBottom: `1px solid ${TZ.lineSoft}`,
             }}>
-              Işdäki sargytlar
+              {t('map.activeOrdersTitle')}
             </div>
 
             {liveOrders.map(o => {
               const driver = liveDrivers.find(d => d.id === o.driverId)
               return (
                 <div key={o.id}
-                  onClick={() => driver && setFocusId(driver.id)}
+                  onClick={() => { setSelectedOrderId(o.id); if (driver) setFocusId(driver.id) }}
                   style={{ padding: '12px 16px', borderBottom: `1px solid ${TZ.lineSoft}`,
-                    cursor: driver ? 'pointer' : 'default', transition: 'background 0.1s' }}>
+                    cursor: 'pointer', transition: 'background 0.1s',
+                    background: o.id === selectedOrderId ? TZ.navyTint : 'transparent' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
                     <span style={{ fontFamily: TZ.mono, fontSize: 10.5, fontWeight: 700, color: TZ.muted }}>#{o.id}</span>
                     <StatusPill status={o.status} size="sm" />
                     <span style={{ marginLeft: 'auto', fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, color: TZ.ink }}>
-                      {Number(o.price ?? 0).toFixed(0)} T
+                      {Number(o.price ?? 0).toFixed(0)} TMT
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5,
@@ -294,9 +329,11 @@ export default function MapPage({ shell }) {
                     </div>
                   )}
                   {!driver && (
-                    <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 4,
-                      fontFamily: TZ.sans, fontSize: 11.5, fontWeight: 600, color: TZ.orange }}>
-                      <Plus size={11} /> Sürüji belle
+                    <div style={{ marginTop: 5 }}>
+                      <AssignDriverMenu drivers={driverOptions} busy={assigning === o.id}
+                        label={t('map.assignDriver')} searchPlaceholder={t('common.searchDriver')}
+                        emptyLabel={t('common.noDrivers')} fontSize={11.5} iconSize={11}
+                        onSelect={taxiId => assign(o.id, taxiId)} />
                     </div>
                   )}
                 </div>
@@ -304,7 +341,7 @@ export default function MapPage({ shell }) {
             })}
             {liveOrders.length === 0 && (
               <div style={{ padding: 24, textAlign: 'center', fontFamily: TZ.sans, fontSize: 12, color: TZ.faint }}>
-                Işdäki sargyt ýok
+                {t('map.noActiveOrders')}
               </div>
             )}
           </div>

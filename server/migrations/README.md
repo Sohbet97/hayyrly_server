@@ -11,6 +11,9 @@ psql "$DATABASE_URL" -f migrations/001_pricing_config.sql
 psql "$DATABASE_URL" -f migrations/002_driver_applications.sql
 psql "$DATABASE_URL" -f migrations/003_users_role.sql
 psql "$DATABASE_URL" -f migrations/004_admin_users.sql
+psql "$DATABASE_URL" -f migrations/005_admin_settings.sql
+psql "$DATABASE_URL" -f migrations/006_payments.sql
+psql "$DATABASE_URL" -f migrations/007_users_block.sql
 ```
 
 Or, using the discrete `DB_*` env vars already required by the app:

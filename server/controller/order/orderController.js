@@ -1,5 +1,5 @@
 const OrderModel = require('../../models/Order/orderModel');
-const { CityPricing } = require('../../db');
+const { CityPricing, User } = require('../../db');
 
 const BASE_PRICE   = parseFloat(process.env.ORDER_BASE_PRICE)   || 10;
 const PRICE_PER_KM = parseFloat(process.env.ORDER_PRICE_PER_KM) || 2.5;
@@ -43,6 +43,11 @@ async function createOrder(req, res) {
 
         if (!userId || !startAddress || startLat == null || startLng == null) {
             return res.status(400).json({ status: false, message: 'userId, startAddress, startLat, startLng are required' });
+        }
+
+        const user = await User.findByPk(userId, { raw: true });
+        if (user?.is_blocked) {
+            return res.status(403).json({ status: false, message: 'Your account has been blocked from placing orders' });
         }
 
         const result = await OrderModel.createOrder({

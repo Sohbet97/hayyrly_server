@@ -11,6 +11,11 @@ export async function me() {
   return data.user
 }
 
+export async function updateProfile(payload) {
+  const data = await api.put('/auth/me', payload)
+  return data.user
+}
+
 export function logout() {
   setToken(null)
 }

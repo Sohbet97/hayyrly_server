@@ -1,4 +1,5 @@
-import { TZ, STATUS, statusColors } from './tokens.js'
+import { useSelector } from 'react-redux'
+import { STATUS } from './tokens.js'
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
 import hayyrlyLogoSrc from '../assets/hayyrly-logo.png'
@@ -37,9 +38,12 @@ const PILL_CLS = {
   online:    { wrap: 'bg-green-soft text-green',      dot: 'bg-green'   },
   busy:      { wrap: 'bg-amber-soft text-amber',      dot: 'bg-amber'   },
   offline:   { wrap: 'bg-surface-3 text-faint',       dot: 'bg-faint'   },
+  paid:      { wrap: 'bg-green-soft text-green',      dot: 'bg-green'   },
+  refunded:  { wrap: 'bg-red-soft text-red',          dot: 'bg-red'     },
 }
 
-export function StatusPill({ status, lang = 'tk', size = 'md' }) {
+export function StatusPill({ status, size = 'md' }) {
+  const lang = useSelector(state => state.ui.lang)
   const s  = STATUS[status] || STATUS.pending
   const c  = PILL_CLS[status] || PILL_CLS.pending
   const px = size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'

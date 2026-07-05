@@ -8,6 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         longitude: { type: DataTypes.DECIMAL },
     }, {
         timestamps: false,
+        tableName: 'address',
     });
 
     Address.associate = (db) => {

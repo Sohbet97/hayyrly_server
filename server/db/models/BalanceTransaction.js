@@ -10,6 +10,7 @@ module.exports = (sequelize, DataTypes) => {
         created_at: { type: DataTypes.DATE },
     }, {
         timestamps: false,
+        tableName: 'balance_tranzaksion',
     });
 
     return BalanceTransaction;

@@ -13,7 +13,16 @@ module.exports = (sequelize, DataTypes) => {
         model_id: { type: DataTypes.INTEGER },
         auto_year: { type: DataTypes.INTEGER },
         auto_image: { type: DataTypes.TEXT },
-        is_active: { type: DataTypes.BOOLEAN },
+        // Real column is smallint (0/1), not boolean — coerce any boolean assignment
+        // (`taxi.is_active = true`, `Taxi.create({ is_active: true })`) to 0/1 so it
+        // doesn't hit "operator does not exist: smallint = boolean" on save.
+        is_active: {
+            type: DataTypes.SMALLINT,
+            defaultValue: 0,
+            set(value) {
+                this.setDataValue('is_active', value ? 1 : 0);
+            },
+        },
         park: { type: DataTypes.TEXT },
     }, {
         timestamps: false,

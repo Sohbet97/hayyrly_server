@@ -1,4 +1,5 @@
-const { sequelize } = require('../../../db');
+const { sequelize, Taxi } = require('../../../db');
+const ApiError = require('../../../exceptions/api-error');
 
 class DriverService {
     static async list({ cityId, isActive, limit = 20, page = 1 } = {}) {
@@ -10,7 +11,9 @@ class DriverService {
         const replacements = { limit: parsedLimit, offset };
 
         if (cityId) { conditions.push('t.city_id = :cityId'); replacements.cityId = cityId; }
-        if (isActive !== undefined) { conditions.push('t.is_active = :isActive'); replacements.isActive = isActive; }
+        // taxies.is_active is smallint (0/1) in Postgres, not boolean — binding a JS
+        // boolean here throws "operator does not exist: smallint = boolean".
+        if (isActive !== undefined) { conditions.push('t.is_active = :isActive'); replacements.isActive = isActive ? 1 : 0; }
 
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -39,6 +42,15 @@ class DriverService {
             limit: parsedLimit,
             page: parsedPage,
         };
+    }
+
+    static async setActive(userId, isActive) {
+        const taxi = await Taxi.findOne({ where: { user_id: userId } });
+        if (!taxi) throw ApiError.NotFound('Driver not found');
+
+        taxi.is_active = isActive;
+        await taxi.save();
+        return taxi.get({ plain: true });
     }
 }
 

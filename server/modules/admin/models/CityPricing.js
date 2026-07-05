@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
         updated_by: { type: DataTypes.INTEGER },
     }, {
         timestamps: false,
+        tableName: 'pricing_config',
     });
 
     CityPricing.associate = (db) => {

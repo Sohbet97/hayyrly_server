@@ -175,6 +175,15 @@ async function updateOrderStatus(orderId, status, extra = {}) {
             { bind: [orderId, status], transaction: t }
         );
 
+        if (status === 'completed' && rows[0]) {
+            await sequelize.query(
+                `INSERT INTO app_data.payments (order_id, user_id, taxi_id, amount, payment_type)
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (order_id) DO NOTHING`,
+                { bind: [orderId, rows[0].user_id, rows[0].taxi_id, rows[0].total_price, rows[0].payment_type], transaction: t }
+            );
+        }
+
         return rows[0] ?? null;
     });
 }

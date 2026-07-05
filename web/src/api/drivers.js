@@ -7,3 +7,7 @@ export function listDrivers(params) {
 export function adjustBalance(userId, payload) {
   return api.post(`/drivers/${userId}/balance`, payload)
 }
+
+export function setDriverActive(userId, isActive) {
+  return api.put(`/drivers/${userId}/status`, { isActive })
+}

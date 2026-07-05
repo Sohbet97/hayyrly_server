@@ -25,6 +25,7 @@ db.TaxiOrder = require('./models/TaxiOrder')(sequelize, DataTypes);
 db.TaxiOrderLog = require('./models/TaxiOrderLog')(sequelize, DataTypes);
 db.Balance = require('./models/Balance')(sequelize, DataTypes);
 db.BalanceTransaction = require('./models/BalanceTransaction')(sequelize, DataTypes);
+db.Payment = require('./models/Payment')(sequelize, DataTypes);
 db.City = require('./models/City')(sequelize, DataTypes);
 db.Marka = require('./models/Marka')(sequelize, DataTypes);
 db.CarModel = require('./models/CarModel')(sequelize, DataTypes);
@@ -35,6 +36,8 @@ db.Address = require('./models/Address')(sequelize, DataTypes);
 db.AdminUser = require('../modules/admin/models/AdminUser')(sequelize, DataTypes);
 db.CityPricing = require('../modules/admin/models/CityPricing')(sequelize, DataTypes);
 db.DriverApplication = require('../modules/admin/models/DriverApplication')(sequelize, DataTypes);
+db.AdminSettings = require('../modules/admin/models/AdminSettings')(sequelize, DataTypes);
+db.AdminNotificationPref = require('../modules/admin/models/AdminNotificationPref')(sequelize, DataTypes);
 
 Object.values(db).forEach((model) => {
     if (model && typeof model.associate === 'function') {

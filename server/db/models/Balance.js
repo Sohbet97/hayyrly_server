@@ -5,6 +5,7 @@ module.exports = (sequelize, DataTypes) => {
         price: { type: DataTypes.DECIMAL },
     }, {
         timestamps: false,
+        tableName: 'balance',
     });
 
     Balance.associate = (db) => {

@@ -112,6 +112,34 @@ function addMarkers(map, drivers = [], orders = []) {
   return markers
 }
 
+// Start/end pin for the order that's currently focused in the side panel.
+function addOrderEndpointMarkers(map, order) {
+  const markers = []
+  if (!order) return markers
+
+  if (order.startLat != null && order.startLng != null) {
+    markers.push(
+      new maplibregl.Marker({ element: makeEl(30, TZ.green, '🟢') })
+        .setLngLat([order.startLng, order.startLat])
+        .setPopup(new maplibregl.Popup({ offset: 18 }).setHTML(
+          `<div style="font-family:Manrope,sans-serif;font-size:12px"><b>Başlangyç</b><br/>${order.from ?? ''}</div>`
+        ))
+        .addTo(map)
+    )
+  }
+  if (order.endLat != null && order.endLng != null) {
+    markers.push(
+      new maplibregl.Marker({ element: makeEl(30, TZ.orangeDk, '🏁') })
+        .setLngLat([order.endLng, order.endLat])
+        .setPopup(new maplibregl.Popup({ offset: 18 }).setHTML(
+          `<div style="font-family:Manrope,sans-serif;font-size:12px"><b>Barmaly ýer</b><br/>${order.to ?? ''}</div>`
+        ))
+        .addTo(map)
+    )
+  }
+  return markers
+}
+
 // ── Route layer ───────────────────────────────────────────────────────────────
 
 export function drawRoute(map, id, geometry, color = TZ.navy) {
@@ -178,12 +206,13 @@ function applyDebugLayer(map, name) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function LiveMap({ style, onReady, debugLayer = '', drivers = [], orders = [] }) {
+export default function LiveMap({ style, onReady, debugLayer = '', drivers = [], orders = [], selectedOrder = null }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const debugRef = useRef(debugLayer)
   debugRef.current = debugLayer
   const markersRef = useRef([])
+  const endpointMarkersRef = useRef([])
   const [error, setError] = useState(null)
   const [mapLoaded, setMapLoaded] = useState(false)
 
@@ -223,6 +252,35 @@ export default function LiveMap({ style, onReady, debugLayer = '', drivers = [],
     markersRef.current.forEach(m => m.remove())
     markersRef.current = addMarkers(map, drivers, orders)
   }, [mapLoaded, drivers, orders])
+
+  // Draw start/end pins + the road route for whichever order is focused in the panel.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+
+    endpointMarkersRef.current.forEach(m => m.remove())
+    endpointMarkersRef.current = []
+    clearRoute(map, 'selected')
+
+    if (!selectedOrder) return
+    endpointMarkersRef.current = addOrderEndpointMarkers(map, selectedOrder)
+
+    const { startLat, startLng, endLat, endLng } = selectedOrder
+    if (startLat == null || startLng == null || endLat == null || endLng == null) return
+
+    let cancelled = false
+    fetchRoute([[startLng, startLat], [endLng, endLat]])
+      .then(geometry => { if (!cancelled) drawRoute(map, 'selected', geometry, TZ.navy) })
+      .catch(() => {})
+
+    const bounds = new maplibregl.LngLatBounds([startLng, startLat], [startLng, startLat])
+    bounds.extend([endLng, endLat])
+    map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 500 })
+
+    return () => { cancelled = true }
+    // Keyed on the order's identity + endpoint coords, not the object reference, since
+    // MapPage recomputes `selectedOrder` on every live-position tick.
+  }, [mapLoaded, selectedOrder?.id, selectedOrder?.startLat, selectedOrder?.startLng, selectedOrder?.endLat, selectedOrder?.endLng])
 
   // Re-apply when the selected table changes.
   useEffect(() => {

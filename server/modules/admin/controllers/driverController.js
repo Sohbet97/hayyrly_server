@@ -15,6 +15,20 @@ class DriverController {
         } catch (e) { next(e); }
     }
 
+    static async setActive(req, res, next) {
+        try {
+            const userId = req.params.userId;
+            const { isActive } = req.body;
+
+            if (typeof isActive !== 'boolean') {
+                throw ApiError.BadRequest('isActive (boolean) is required');
+            }
+
+            const result = await DriverService.setActive(userId, isActive);
+            return res.status(200).json({ status: true, result });
+        } catch (e) { next(e); }
+    }
+
     static async adjustBalance(req, res, next) {
         try {
             const userId = req.params.userId;

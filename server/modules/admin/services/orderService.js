@@ -41,25 +41,43 @@ class OrderService {
         };
     }
 
-    static async dailyReport({ days = 14 } = {}) {
+    // Shared by dailyReport/ordersByCity/cancellationSplit/peakHours: prefer an
+    // explicit from/to range, falling back to the legacy `days` window.
+    static _rangeWhere({ from, to, days, cityId }, alias = 'o') {
+        const conditions = [];
+        const replacements = {};
+        if (from || to) {
+            if (from) { conditions.push(`${alias}.created_at >= :from`); replacements.from = from; }
+            if (to) { conditions.push(`${alias}.created_at < :to`); replacements.to = to; }
+        } else {
+            conditions.push(`${alias}.created_at >= NOW() - (:days || ' days')::interval`);
+            replacements.days = parseInt(days, 10) || 14;
+        }
+        if (cityId) { conditions.push('t.city_id = :cityId'); replacements.cityId = cityId; }
+        return { where: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', replacements };
+    }
+
+    static async dailyReport({ from, to, days = 14, cityId } = {}) {
+        const { where, replacements } = OrderService._rangeWhere({ from, to, days, cityId }, 'o');
         const rows = await sequelize.query(`
             SELECT
-                date_trunc('day', created_at)::date AS date,
-                COUNT(*) FILTER (WHERE status = 'completed') AS delivered,
-                COUNT(*) FILTER (WHERE status IN ('cancelled_by_user', 'cancelled_by_driver')) AS failed
-            FROM app_data.taxi_orders
-            WHERE created_at >= NOW() - (:days || ' days')::interval
+                date_trunc('day', o.created_at)::date AS date,
+                COUNT(*) FILTER (WHERE o.status = 'completed') AS delivered,
+                COUNT(*) FILTER (WHERE o.status IN ('cancelled_by_user', 'cancelled_by_driver')) AS failed
+            FROM app_data.taxi_orders o
+            LEFT JOIN app_data.taxies t ON t.id = o.taxi_id
+            ${where}
             GROUP BY 1
             ORDER BY 1 ASC
-        `, { replacements: { days: parseInt(days, 10) || 14 }, type: sequelize.QueryTypes.SELECT });
+        `, { replacements, type: sequelize.QueryTypes.SELECT });
         return rows;
     }
 
-    static async summary({ from, to, cityId } = {}) {
+    static async _totals({ from, to, cityId } = {}) {
         const conditions = [];
         const replacements = {};
         if (from) { conditions.push('o.created_at >= :from'); replacements.from = from; }
-        if (to) { conditions.push('o.created_at <= :to'); replacements.to = to; }
+        if (to) { conditions.push('o.created_at < :to'); replacements.to = to; }
         if (cityId) { conditions.push('t.city_id = :cityId'); replacements.cityId = cityId; }
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -69,11 +87,17 @@ class OrderService {
                 COUNT(*) FILTER (WHERE o.status = 'completed') AS completed,
                 COUNT(*) FILTER (WHERE o.status = 'cancelled_by_user') AS cancelled_by_user,
                 COUNT(*) FILTER (WHERE o.status = 'cancelled_by_driver') AS cancelled_by_driver,
-                COALESCE(SUM(o.total_price) FILTER (WHERE o.status = 'completed'), 0) AS revenue
+                COALESCE(SUM(o.total_price) FILTER (WHERE o.status = 'completed'), 0) AS revenue,
+                COALESCE(AVG(o.distance_km) FILTER (WHERE o.status = 'completed'), 0) AS avg_distance_km
             FROM app_data.taxi_orders o
             LEFT JOIN app_data.taxies t ON t.id = o.taxi_id
             ${where}
         `, { replacements, type: sequelize.QueryTypes.SELECT });
+        return { ...totals, where, replacements };
+    }
+
+    static async summary({ from, to, cityId } = {}) {
+        const { where, replacements, ...totals } = await OrderService._totals({ from, to, cityId });
 
         const topDrivers = await sequelize.query(`
             SELECT t.id, t.first_name, t.last_name, COUNT(o.id) AS order_count,
@@ -87,15 +111,96 @@ class OrderService {
         `, { replacements, type: sequelize.QueryTypes.SELECT });
 
         const activeDriversRows = await sequelize.query(`
-            SELECT COUNT(*) AS count FROM app_data.taxies WHERE is_active = true
+            SELECT COUNT(*) AS count FROM app_data.taxies WHERE is_active = 1
             ${cityId ? 'AND city_id = :cityId' : ''}
         `, { replacements: cityId ? { cityId } : {}, type: sequelize.QueryTypes.SELECT });
 
+        const payConditions = ["p.status = 'paid'"];
+        const payReplacements = {};
+        if (from) { payConditions.push('p.created_at >= :from'); payReplacements.from = from; }
+        if (to) { payConditions.push('p.created_at < :to'); payReplacements.to = to; }
+        if (cityId) { payConditions.push('t.city_id = :cityId'); payReplacements.cityId = cityId; }
+        const revenueByType = await sequelize.query(`
+            SELECT p.payment_type, COALESCE(SUM(p.amount), 0) AS amount
+            FROM app_data.payments p
+            LEFT JOIN app_data.taxies t ON t.id = p.taxi_id
+            WHERE ${payConditions.join(' AND ')}
+            GROUP BY p.payment_type
+        `, { replacements: payReplacements, type: sequelize.QueryTypes.SELECT });
+
+        const completed = Number(totals.completed ?? 0);
+        const revenue = Number(totals.revenue ?? 0);
+
+        let previous = null;
+        if (from && to) {
+            const fromDate = new Date(from);
+            const toDate = new Date(to);
+            const spanMs = toDate.getTime() - fromDate.getTime();
+            if (spanMs > 0) {
+                const prevTo = fromDate.toISOString();
+                const prevFrom = new Date(fromDate.getTime() - spanMs).toISOString();
+                const { where: prevWhere, replacements: prevReplacements, ...prevTotals } =
+                    await OrderService._totals({ from: prevFrom, to: prevTo, cityId });
+                previous = {
+                    total_orders: Number(prevTotals.total_orders ?? 0),
+                    completed: Number(prevTotals.completed ?? 0),
+                    revenue: Number(prevTotals.revenue ?? 0),
+                };
+            }
+        }
+
         return {
             ...totals,
+            avg_order_value: completed > 0 ? revenue / completed : 0,
+            revenue_by_type: revenueByType,
             active_drivers: Number(activeDriversRows[0]?.count ?? 0),
             top_drivers: topDrivers,
+            previous,
         };
+    }
+
+    static async ordersByCity({ from, to, days = 30 } = {}) {
+        const { where, replacements } = OrderService._rangeWhere({ from, to, days }, 'o');
+        const rows = await sequelize.query(`
+            SELECT c.id AS city_id, c.name_tm, c.name_ru, COUNT(o.id) AS order_count
+            FROM app_data.taxi_orders o
+            JOIN app_data.taxies t ON t.id = o.taxi_id
+            JOIN app_data.cities c ON c.id = t.city_id
+            ${where}
+            GROUP BY c.id, c.name_tm, c.name_ru
+            ORDER BY order_count DESC
+        `, { replacements, type: sequelize.QueryTypes.SELECT });
+        return rows;
+    }
+
+    static async cancellationSplit({ from, to, days = 30, cityId } = {}) {
+        const { where, replacements } = OrderService._rangeWhere({ from, to, days, cityId }, 'o');
+        const [row] = await sequelize.query(`
+            SELECT
+                COUNT(*) FILTER (WHERE o.status = 'cancelled_by_user') AS cancelled_by_user,
+                COUNT(*) FILTER (WHERE o.status = 'cancelled_by_driver') AS cancelled_by_driver
+            FROM app_data.taxi_orders o
+            LEFT JOIN app_data.taxies t ON t.id = o.taxi_id
+            ${where}
+        `, { replacements, type: sequelize.QueryTypes.SELECT });
+        return {
+            cancelled_by_user: Number(row?.cancelled_by_user ?? 0),
+            cancelled_by_driver: Number(row?.cancelled_by_driver ?? 0),
+        };
+    }
+
+    static async peakHours({ from, to, days = 30, cityId } = {}) {
+        const { where, replacements } = OrderService._rangeWhere({ from, to, days, cityId }, 'o');
+        const rows = await sequelize.query(`
+            SELECT EXTRACT(HOUR FROM o.created_at)::int AS hour, COUNT(*) AS order_count
+            FROM app_data.taxi_orders o
+            LEFT JOIN app_data.taxies t ON t.id = o.taxi_id
+            ${where}
+            GROUP BY 1
+            ORDER BY 1 ASC
+        `, { replacements, type: sequelize.QueryTypes.SELECT });
+        const byHour = new Map(rows.map(r => [Number(r.hour), Number(r.order_count)]));
+        return Array.from({ length: 24 }, (_, hour) => ({ hour, order_count: byHour.get(hour) ?? 0 }));
     }
 }
 

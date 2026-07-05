@@ -147,6 +147,105 @@ const teamMemberSchema = {
     },
 };
 
+const clientSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        full_name: { type: 'string' },
+        phone: { type: 'string' },
+        avatar: { type: 'string', nullable: true },
+        is_blocked: { type: 'boolean' },
+        blocked_reason: { type: 'string', nullable: true },
+        blocked_at: { type: 'string', format: 'date-time', nullable: true },
+        created_at: { type: 'string', format: 'date-time' },
+        total_orders: { type: 'integer' },
+        completed_orders: { type: 'integer' },
+        total_spent: { type: 'number' },
+    },
+};
+
+const clientOrderSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        start_address: { type: 'string' },
+        end_address: { type: 'string', nullable: true },
+        distance_km: { type: 'number' },
+        payment_type: { type: 'string' },
+        total_price: { type: 'number' },
+        status: { type: 'string' },
+        created_at: { type: 'string', format: 'date-time' },
+        driver_first_name: { type: 'string', nullable: true },
+        driver_last_name: { type: 'string', nullable: true },
+    },
+};
+
+const paymentSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        order_id: { type: 'integer', nullable: true },
+        amount: { type: 'number' },
+        payment_type: { type: 'string' },
+        status: { type: 'string', enum: ['paid', 'refunded'] },
+        refund_note: { type: 'string', nullable: true },
+        refunded_at: { type: 'string', format: 'date-time', nullable: true },
+        created_at: { type: 'string', format: 'date-time' },
+        client_id: { type: 'integer', nullable: true },
+        client_name: { type: 'string', nullable: true },
+        driver_id: { type: 'integer', nullable: true },
+        driver_first_name: { type: 'string', nullable: true },
+        driver_last_name: { type: 'string', nullable: true },
+    },
+};
+
+const adminCitySchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        name_tm: { type: 'string' },
+        name_ru: { type: 'string' },
+        name_en: { type: 'string' },
+    },
+};
+
+const adminSettingsSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        company_name: { type: 'string' },
+        support_phone: { type: 'string' },
+        timezone: { type: 'string' },
+        default_lang: { type: 'string', enum: ['tk', 'ru'] },
+        default_currency: { type: 'string', enum: ['TMT', 'USD'] },
+        distance_unit: { type: 'string', enum: ['km', 'mi'] },
+        date_format: { type: 'string', enum: ['DD.MM.YYYY', 'YYYY-MM-DD'] },
+        updated_at: { type: 'string', format: 'date-time', nullable: true },
+    },
+};
+
+const notifPrefRowSchema = {
+    type: 'object',
+    properties: {
+        key: { type: 'string' },
+        push: { type: 'boolean' },
+        sms: { type: 'boolean' },
+        email: { type: 'boolean' },
+    },
+};
+
+const notifPrefsSchema = {
+    type: 'object',
+    properties: {
+        admin_id: { type: 'integer' },
+        rows: { type: 'array', items: notifPrefRowSchema },
+        quiet_hours_enabled: { type: 'boolean' },
+        quiet_hours_start: { type: 'string', example: '22:00' },
+        quiet_hours_end: { type: 'string', example: '07:00' },
+        updated_at: { type: 'string', format: 'date-time', nullable: true },
+    },
+};
+
 const paths = {
     // ── Users ──────────────────────────────────────────────────────────────
     '/api/users/createNew': {
@@ -574,6 +673,11 @@ const paths = {
             tags: ['Admin · Auth'], summary: 'Current admin session', security: bearerAuth,
             responses: responses({ 200: okEnvelope({ user: teamMemberSchema }), 401: errorEnvelope }),
         },
+        put: {
+            tags: ['Admin · Auth'], summary: 'Update own profile (name/phone/password)', security: bearerAuth,
+            requestBody: jsonBody({ type: 'object', properties: { name: { type: 'string' }, phone: { type: 'string' }, newPassword: { type: 'string' }, currentPassword: { type: 'string', description: 'required when newPassword is set' } } }),
+            responses: responses({ 200: okEnvelope({ user: teamMemberSchema }), 400: errorEnvelope, 401: errorEnvelope }),
+        },
     },
 
     // ── Admin: Drivers ──────────────────────────────────────────────────────
@@ -584,12 +688,57 @@ const paths = {
             responses: responses({ 200: paginated(driverSchema), 401: errorEnvelope }),
         },
     },
+    '/api/admin/drivers/{userId}/status': {
+        put: {
+            tags: ['Admin · Drivers'], summary: "Set a driver's active status", security: bearerAuth,
+            parameters: [param('userId', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', required: ['isActive'], properties: { isActive: { type: 'boolean' } } }),
+            responses: responses({ 200: okEnvelope({ result: driverSchema }), 400: errorEnvelope, 401: errorEnvelope }),
+        },
+    },
     '/api/admin/drivers/{userId}/balance': {
         post: {
             tags: ['Admin · Drivers'], summary: "Adjust a driver's balance", security: bearerAuth,
             parameters: [param('userId', { where: 'path', type: 'integer', required: true })],
             requestBody: jsonBody({ type: 'object', required: ['amount', 'direction'], properties: { amount: { type: 'number' }, direction: { type: 'string', enum: ['add', 'remove'] }, note: { type: 'string', nullable: true } } }),
             responses: responses({ 200: okEnvelope({ result: { type: 'object' } }), 400: errorEnvelope, 401: errorEnvelope }),
+        },
+    },
+
+    // ── Admin: Clients ──────────────────────────────────────────────────────
+    '/api/admin/clients': {
+        get: {
+            tags: ['Admin · Clients'], summary: 'List clients (with order stats)', security: bearerAuth,
+            parameters: [param('search'), param('isBlocked', { type: 'boolean' }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: paginated(clientSchema), 401: errorEnvelope }),
+        },
+    },
+    '/api/admin/clients/{userId}/orders': {
+        get: {
+            tags: ['Admin · Clients'], summary: "List a client's orders", security: bearerAuth,
+            parameters: [param('userId', { where: 'path', type: 'integer', required: true }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: paginated(clientOrderSchema), 400: errorEnvelope, 401: errorEnvelope }),
+        },
+    },
+    '/api/admin/clients/{userId}/status': {
+        put: {
+            tags: ['Admin · Clients'], summary: 'Block or unblock a client', security: bearerAuth,
+            parameters: [param('userId', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', required: ['isBlocked'], properties: { isBlocked: { type: 'boolean' }, reason: { type: 'string', nullable: true, maxLength: 500 } } }),
+            responses: responses({ 200: okEnvelope({ result: clientSchema }), 400: errorEnvelope, 401: errorEnvelope }),
+        },
+    },
+
+    // ── Admin: Cities ───────────────────────────────────────────────────────
+    '/api/admin/cities': {
+        get: {
+            tags: ['Admin · Cities'], summary: 'List cities', security: bearerAuth,
+            responses: responses({ 200: okEnvelope({ data: { type: 'array', items: adminCitySchema } }), 401: errorEnvelope }),
+        },
+        post: {
+            tags: ['Admin · Cities'], summary: 'Create city (admin role only)', security: bearerAuth,
+            requestBody: jsonBody({ type: 'object', required: ['name_tm', 'name_ru', 'name_en'], properties: { name_tm: { type: 'string' }, name_ru: { type: 'string' }, name_en: { type: 'string' } } }),
+            responses: responses({ 201: okEnvelope({ result: adminCitySchema }), 400: errorEnvelope, 401: errorEnvelope, 403: errorEnvelope }),
         },
     },
 
@@ -622,8 +771,105 @@ const paths = {
     '/api/admin/analytics/daily': {
         get: {
             tags: ['Admin · Reports'], summary: 'Daily delivered/failed counts', security: bearerAuth,
-            parameters: [param('days', { type: 'integer', description: 'default 14' })],
+            parameters: [param('days', { type: 'integer', description: 'default 14' }), param('from'), param('to'), param('cityId', { type: 'integer' })],
             responses: responses({ 200: okEnvelope({ data: { type: 'array', items: { type: 'object', properties: { date: { type: 'string', format: 'date' }, delivered: { type: 'integer' }, failed: { type: 'integer' } } } } }), 401: errorEnvelope }),
+        },
+    },
+    '/api/admin/analytics/by-city': {
+        get: {
+            tags: ['Admin · Reports'], summary: 'Order counts grouped by city', security: bearerAuth,
+            parameters: [param('days', { type: 'integer', description: 'default 30' }), param('from'), param('to')],
+            responses: responses({ 200: okEnvelope({ data: { type: 'array', items: { type: 'object', properties: { city_id: { type: 'integer' }, name_tm: { type: 'string' }, name_ru: { type: 'string' }, order_count: { type: 'integer' } } } } }), 401: errorEnvelope }),
+        },
+    },
+    '/api/admin/analytics/cancellations': {
+        get: {
+            tags: ['Admin · Reports'], summary: 'Cancellation split (by user vs by driver)', security: bearerAuth,
+            parameters: [param('days', { type: 'integer', description: 'default 30' }), param('from'), param('to'), param('cityId', { type: 'integer' })],
+            responses: responses({ 200: okEnvelope({ result: { type: 'object', properties: { cancelled_by_user: { type: 'integer' }, cancelled_by_driver: { type: 'integer' } } } }), 401: errorEnvelope }),
+        },
+    },
+    '/api/admin/analytics/peak-hours': {
+        get: {
+            tags: ['Admin · Reports'], summary: 'Order counts by hour of day (0-23, zero-filled)', security: bearerAuth,
+            parameters: [param('days', { type: 'integer', description: 'default 30' }), param('from'), param('to'), param('cityId', { type: 'integer' })],
+            responses: responses({ 200: okEnvelope({ data: { type: 'array', items: { type: 'object', properties: { hour: { type: 'integer' }, order_count: { type: 'integer' } } } } }), 401: errorEnvelope }),
+        },
+    },
+
+    // ── Admin: Payments ───────────────────────────────────────────────────────
+    '/api/admin/payments': {
+        get: {
+            tags: ['Admin · Payments'], summary: 'List payments', security: bearerAuth,
+            parameters: [
+                param('status', { description: 'paid | refunded' }), param('paymentType'), param('driverId', { type: 'integer' }),
+                param('search'), param('from'), param('to'), param('limit', { type: 'integer' }), param('page', { type: 'integer' }),
+            ],
+            responses: responses({ 200: paginated(paymentSchema), 401: errorEnvelope }),
+        },
+    },
+    '/api/admin/payments/summary': {
+        get: {
+            tags: ['Admin · Payments'], summary: 'Revenue/refund totals by payment type', security: bearerAuth,
+            parameters: [param('from'), param('to')],
+            responses: responses({
+                200: okEnvelope({
+                    result: {
+                        type: 'object', properties: {
+                            paid_count: { type: 'integer' }, total_revenue: { type: 'number' },
+                            refunded_count: { type: 'integer' }, total_refunded: { type: 'number' },
+                            cash_revenue: { type: 'number' }, card_revenue: { type: 'number' }, balance_revenue: { type: 'number' },
+                        },
+                    },
+                }), 401: errorEnvelope,
+            }),
+        },
+    },
+    '/api/admin/payments/{id}/refund': {
+        post: {
+            tags: ['Admin · Payments'], summary: 'Refund a payment', security: bearerAuth,
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', properties: { note: { type: 'string', nullable: true } } }),
+            responses: responses({ 200: okEnvelope({ result: paymentSchema }), 401: errorEnvelope, 404: errorEnvelope, 409: errorEnvelope }),
+        },
+    },
+
+    // ── Admin: Settings ───────────────────────────────────────────────────────
+    '/api/admin/settings': {
+        get: {
+            tags: ['Admin · Settings'], summary: 'Get company settings (singleton)', security: bearerAuth,
+            responses: responses({ 200: okEnvelope({ result: adminSettingsSchema }), 401: errorEnvelope }),
+        },
+        put: {
+            tags: ['Admin · Settings'], summary: 'Update company settings (admin role only)', security: bearerAuth,
+            requestBody: jsonBody({
+                type: 'object', required: ['company_name', 'support_phone', 'timezone', 'default_lang', 'default_currency', 'distance_unit', 'date_format'],
+                properties: {
+                    company_name: { type: 'string' }, support_phone: { type: 'string' }, timezone: { type: 'string' },
+                    default_lang: { type: 'string', enum: ['tk', 'ru'] }, default_currency: { type: 'string', enum: ['TMT', 'USD'] },
+                    distance_unit: { type: 'string', enum: ['km', 'mi'] }, date_format: { type: 'string', enum: ['DD.MM.YYYY', 'YYYY-MM-DD'] },
+                },
+            }),
+            responses: responses({ 200: okEnvelope({ result: adminSettingsSchema }), 400: errorEnvelope, 401: errorEnvelope, 403: errorEnvelope }),
+        },
+    },
+    '/api/admin/settings/notifications': {
+        get: {
+            tags: ['Admin · Settings'], summary: 'Get the current admin\'s notification preferences', security: bearerAuth,
+            responses: responses({ 200: okEnvelope({ result: notifPrefsSchema }), 401: errorEnvelope }),
+        },
+        put: {
+            tags: ['Admin · Settings'], summary: 'Update the current admin\'s notification preferences', security: bearerAuth,
+            requestBody: jsonBody({
+                type: 'object', required: ['rows', 'quiet_hours_enabled', 'quiet_hours_start', 'quiet_hours_end'],
+                properties: {
+                    rows: { type: 'array', items: notifPrefRowSchema },
+                    quiet_hours_enabled: { type: 'boolean' },
+                    quiet_hours_start: { type: 'string', example: '22:00' },
+                    quiet_hours_end: { type: 'string', example: '07:00' },
+                },
+            }),
+            responses: responses({ 200: okEnvelope({ result: notifPrefsSchema }), 400: errorEnvelope, 401: errorEnvelope }),
         },
     },
 
@@ -729,9 +975,11 @@ module.exports = {
         { name: 'Users' }, { name: 'Auth' }, { name: 'Cities' }, { name: 'Addresses' },
         { name: 'Cars' }, { name: 'Services' }, { name: 'Taksi' }, { name: 'Balance' },
         { name: 'Orders' }, { name: 'Map' }, { name: 'Misc' }, { name: 'Public' },
-        { name: 'Admin · Auth' }, { name: 'Admin · Drivers' }, { name: 'Admin · Orders' },
-        { name: 'Admin · Reports' }, { name: 'Admin · Transactions' },
-        { name: 'Admin · Driver Applications' }, { name: 'Admin · Pricing' }, { name: 'Admin · Team' },
+        { name: 'Admin · Auth' }, { name: 'Admin · Drivers' }, { name: 'Admin · Clients' },
+        { name: 'Admin · Cities' }, { name: 'Admin · Orders' },
+        { name: 'Admin · Reports' }, { name: 'Admin · Transactions' }, { name: 'Admin · Payments' },
+        { name: 'Admin · Driver Applications' }, { name: 'Admin · Pricing' },
+        { name: 'Admin · Team' }, { name: 'Admin · Settings' },
     ],
     paths,
 };

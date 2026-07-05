@@ -1,18 +1,24 @@
-import { Map, Package, LayoutGrid, Users, BarChart2, Settings, LogOut, Bell, Sun, Moon, Search } from 'lucide-react'
-import { TZ } from '../../design/tokens.js'
+import { useNavigate } from 'react-router-dom'
+import { useSelector, useDispatch } from 'react-redux'
+import { Map, Package, LayoutGrid, Users, UserCircle, BarChart2, Wallet, Settings, LogOut, Sun, Moon, Search } from 'lucide-react'
+import { useTZ } from '../../design/tokens.js'
 import { useApi } from '../../api/useApi.js'
 import { listOrders } from '../../api/orders.js'
+import { setLang, toggleTheme } from '../../store/uiSlice.js'
 import hayyrlyLogo from '../../assets/hayyrly-logo.png'
 
 const MAIN_NAV = [
-  { id: 'map',       tk: 'Karta',         ru: 'Karta',          Icon: Map        },
-  { id: 'orders',    tk: 'Sargytlar',     ru: 'Sargytlar',      Icon: Package    },
-  { id: 'board',     tk: 'Status tagtasy',ru: 'Status tagtasy', Icon: LayoutGrid },
-  { id: 'drivers',   tk: 'Sürüjiler',     ru: 'Sürüjiler',      Icon: Users      },
-  { id: 'analytics', tk: 'Analitika',     ru: 'Analitika',      Icon: BarChart2  },
+  { id: 'map',       tk: 'Karta',         ru: 'Карта',          Icon: Map        },
+  { id: 'orders',    tk: 'Sargytlar',     ru: 'Заказы',         Icon: Package    },
+  { id: 'board',     tk: 'Status tagtasy',ru: 'Доска статусов', Icon: LayoutGrid },
+  { id: 'drivers',   tk: 'Sürüjiler',     ru: 'Водители',       Icon: Users      },
+  { id: 'clients',   tk: 'Müşderiler',    ru: 'Клиенты',        Icon: UserCircle },
+  { id: 'analytics', tk: 'Analitika',     ru: 'Аналитика',      Icon: BarChart2  },
+  { id: 'payments',  tk: 'Töleg',         ru: 'Платежи',        Icon: Wallet     },
 ]
 
 function NavItem({ id, label, Icon, active, badge, onClick }) {
+  const TZ = useTZ()
   const on = active === id
   return (
     <button onClick={() => onClick(id)} type="button"
@@ -41,9 +47,13 @@ function NavItem({ id, label, Icon, active, badge, onClick }) {
   )
 }
 
-function AdminSidebar({ page, setPage, user, onLogout, lang = 'tk' }) {
+function AdminSidebar({ page, user, onLogout }) {
+  const lang = useSelector(state => state.ui.lang)
+  const TZ = useTZ()
+  const navigate = useNavigate()
   const { data } = useApi(() => listOrders({ status: 'created', limit: 1 }), [])
   const pendingOrders = data?.total ?? 0
+  const goTo = id => navigate(`/${id}`)
 
   return (
     <aside style={{ width: 232, background: TZ.surface, borderRight: `1px solid ${TZ.line}`,
@@ -73,36 +83,40 @@ function AdminSidebar({ page, setPage, user, onLogout, lang = 'tk' }) {
         {MAIN_NAV.map(({ id, tk, ru, Icon }) => (
           <NavItem key={id} id={id} label={lang === 'ru' ? ru : tk} Icon={Icon}
             active={page} badge={id === 'orders' && pendingOrders > 0 ? pendingOrders : null}
-            onClick={setPage} />
+            onClick={goTo} />
         ))}
 
         {/* Settings — separated */}
         <div style={{ marginTop: 6, paddingTop: 8, borderTop: `1px solid ${TZ.lineSoft}` }}>
           <NavItem id="settings" label={lang === 'ru' ? 'Настройки' : 'Sazlamalar'}
-            Icon={Settings} active={page} onClick={setPage} />
+            Icon={Settings} active={page} onClick={goTo} />
         </div>
       </nav>
 
       {/* User */}
       <div style={{ padding: 12, borderTop: `1px solid ${TZ.lineSoft}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px' }}>
-          <div style={{ width: 32, height: 32, borderRadius: 16, background: TZ.navySoft,
-            color: TZ.navy, fontFamily: TZ.sans, fontWeight: 700, fontSize: 13,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            {(user?.name || 'Admin').split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase()}
-          </div>
-          <div style={{ flex: 1, minWidth: 0, lineHeight: 1.2 }}>
-            <div style={{ fontFamily: TZ.sans, fontSize: 13, fontWeight: 600, color: TZ.text,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user?.name || 'Admin'}
+          <button onClick={() => navigate('/profile')} type="button" title={lang === 'ru' ? 'Профиль' : 'Profil'}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0,
+              background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 16, background: TZ.navySoft,
+              color: TZ.navy, fontFamily: TZ.sans, fontWeight: 700, fontSize: 13,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {(user?.name || 'Admin').split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase()}
             </div>
-            <div style={{ fontFamily: TZ.sans, fontSize: 11, color: TZ.muted }}>
-              {user?.role === 'admin' ? 'Admin' : 'Dispetçer'}
+            <div style={{ flex: 1, minWidth: 0, lineHeight: 1.2 }}>
+              <div style={{ fontFamily: TZ.sans, fontSize: 13, fontWeight: 600, color: TZ.text,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.name || 'Admin'}
+              </div>
+              <div style={{ fontFamily: TZ.sans, fontSize: 11, color: TZ.muted }}>
+                {user?.role === 'admin' ? 'Admin' : (lang === 'ru' ? 'Диспетчер' : 'Dispetçer')}
+              </div>
             </div>
-          </div>
+          </button>
           <button onClick={onLogout} type="button" title="Çyk"
             style={{ background: 'transparent', border: 0, color: TZ.faint,
-              display: 'flex', cursor: 'pointer', transition: 'color 0.15s' }}
+              display: 'flex', cursor: 'pointer', transition: 'color 0.15s', flexShrink: 0 }}
             onMouseEnter={e => e.currentTarget.style.color = TZ.muted}
             onMouseLeave={e => e.currentTarget.style.color = TZ.faint}>
             <LogOut size={16} />
@@ -113,7 +127,11 @@ function AdminSidebar({ page, setPage, user, onLogout, lang = 'tk' }) {
   )
 }
 
-function AdminTopbar({ title, subtitle, lang, setLang, theme, toggleTheme, actions }) {
+function AdminTopbar({ title, subtitle, actions }) {
+  const lang = useSelector(state => state.ui.lang)
+  const theme = useSelector(state => state.ui.theme)
+  const TZ = useTZ()
+  const dispatch = useDispatch()
   const placeholder = lang === 'ru' ? 'Поиск заказов, водителей…' : 'Sargyt, sürüji gözle…'
 
   return (
@@ -146,7 +164,7 @@ function AdminTopbar({ title, subtitle, lang, setLang, theme, toggleTheme, actio
         {/* Lang toggle */}
         <div style={{ display: 'flex', background: TZ.surface2, borderRadius: 8, padding: 3 }}>
           {['tk', 'ru'].map(l => (
-            <button key={l} onClick={() => setLang(l)} type="button"
+            <button key={l} onClick={() => dispatch(setLang(l))} type="button"
               style={{ border: 0, padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
                 fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
                 background: lang === l ? TZ.surface : 'transparent',
@@ -158,21 +176,11 @@ function AdminTopbar({ title, subtitle, lang, setLang, theme, toggleTheme, actio
         </div>
 
         {/* Theme toggle */}
-        <button onClick={toggleTheme} type="button"
+        <button onClick={() => dispatch(toggleTheme())} type="button"
           style={{ width: 36, height: 36, display: 'flex', alignItems: 'center',
             justifyContent: 'center', borderRadius: 8, background: TZ.surface2,
             border: 0, color: TZ.body, cursor: 'pointer' }}>
           {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
-
-        {/* Bell */}
-        <button type="button"
-          style={{ width: 36, height: 36, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', borderRadius: 8, background: TZ.surface2,
-            border: 0, color: TZ.body, cursor: 'pointer', position: 'relative' }}>
-          <Bell size={15} />
-          <span style={{ position: 'absolute', top: 7, right: 7, width: 8, height: 8,
-            borderRadius: 4, background: TZ.orange, boxShadow: `0 0 0 2px ${TZ.surface2}` }} />
         </button>
 
         {actions && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{actions}</div>}
@@ -181,13 +189,13 @@ function AdminTopbar({ title, subtitle, lang, setLang, theme, toggleTheme, actio
   )
 }
 
-export function AdminShell({ children, active, title, subtitle, lang, setLang, theme, toggleTheme, page, setPage, user, onLogout, actions }) {
+export function AdminShell({ children, active, title, subtitle, user, onLogout, actions }) {
+  const TZ = useTZ()
   return (
     <div className="flex h-full overflow-hidden" style={{ background: TZ.surface2 }}>
-      <AdminSidebar page={active ?? page} setPage={setPage} user={user} onLogout={onLogout} lang={lang} />
+      <AdminSidebar page={active} user={user} onLogout={onLogout} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        <AdminTopbar title={title} subtitle={subtitle} lang={lang} setLang={setLang}
-          theme={theme} toggleTheme={toggleTheme} actions={actions} />
+        <AdminTopbar title={title} subtitle={subtitle} actions={actions} />
         <main className="flex-1 min-h-0 overflow-hidden">
           {children}
         </main>

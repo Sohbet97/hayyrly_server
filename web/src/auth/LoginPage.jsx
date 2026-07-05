@@ -1,10 +1,17 @@
 import { useState } from 'react'
+import { useSelector, useDispatch } from 'react-redux'
 import { Eye, EyeOff } from 'lucide-react'
-import { TZ } from '../design/tokens.js'
+import { useTZ } from '../design/tokens.js'
 import hayyrlyLogo from '../assets/hayyrly-logo.png'
 import { login } from '../api/auth.js'
+import { useT } from '../i18n/useT.js'
+import { setLang } from '../store/uiSlice.js'
 
 export default function LoginPage({ onLogin }) {
+  const lang = useSelector(state => state.ui.lang)
+  const TZ = useTZ()
+  const dispatch = useDispatch()
+  const t = useT()
   const [phone,    setPhone]    = useState('')
   const [password, setPassword] = useState('')
   const [showPw,   setShowPw]   = useState(false)
@@ -14,14 +21,14 @@ export default function LoginPage({ onLogin }) {
 
   async function submit(e) {
     e.preventDefault()
-    if (!phone || !password) { setError('Telefon we parol hökman!'); return }
+    if (!phone || !password) { setError(t('login.validationError')); return }
     setError('')
     setBusy(true)
     try {
       const user = await login(`+993${phone}`, password)
       onLogin(user)
     } catch (err) {
-      setError(err.message || 'Giriş şowsuz boldy')
+      setError(err.message || t('login.loginError'))
     } finally {
       setBusy(false)
     }
@@ -68,19 +75,19 @@ export default function LoginPage({ onLogin }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', zIndex: 1 }}>
           <div style={{ color: '#fff', fontWeight: 800, fontSize: 36,
             letterSpacing: -1.2, lineHeight: 1.15, marginBottom: 14 }}>
-            Dolandyryş<br />paneline<br />hoş geldiňiz
+            {t('login.heroLine1')}<br />{t('login.heroLine2')}<br />{t('login.heroLine3')}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.6, maxWidth: 320 }}>
-            Sürüjileri we sargytlary real wagtda<br />dolandyryň
+            {t('login.heroSub')}
           </div>
         </div>
 
         {/* Bottom stats */}
         <div style={{ display: 'flex', gap: 24, position: 'relative', zIndex: 1 }}>
           {[
-            { v: '7', l: 'Sürüji' },
-            { v: '4', l: 'Şäher' },
-            { v: '24/7', l: 'Goldaw' },
+            { v: '7', l: t('login.statDrivers') },
+            { v: '4', l: t('login.statCities') },
+            { v: '24/7', l: t('login.statSupport') },
           ].map((s, i) => (
             <div key={i}>
               <div style={{ color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: -0.5 }}>{s.v}</div>
@@ -97,12 +104,26 @@ export default function LoginPage({ onLogin }) {
 
         <div style={{ width: '100%', maxWidth: 400 }}>
           {/* Heading */}
-          <div style={{ marginBottom: 32 }}>
-            <h1 style={{ fontFamily: TZ.sans, fontWeight: 800, fontSize: 26,
-              color: TZ.ink, letterSpacing: -0.7, margin: 0 }}>Giriş</h1>
-            <p style={{ fontFamily: TZ.sans, fontSize: 14, color: TZ.muted, marginTop: 6 }}>
-              Hasabyňyza girip dowam ediň
-            </p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
+            <div>
+              <h1 style={{ fontFamily: TZ.sans, fontWeight: 800, fontSize: 26,
+                color: TZ.ink, letterSpacing: -0.7, margin: 0 }}>{t('login.heading')}</h1>
+              <p style={{ fontFamily: TZ.sans, fontSize: 14, color: TZ.muted, marginTop: 6 }}>
+                {t('login.subheading')}
+              </p>
+            </div>
+            <div style={{ display: 'flex', background: TZ.surface2, borderRadius: 8, padding: 3, flexShrink: 0 }}>
+              {['tk', 'ru'].map(l => (
+                <button key={l} onClick={() => dispatch(setLang(l))} type="button"
+                  style={{ border: 0, padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
+                    fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
+                    background: lang === l ? TZ.surface : 'transparent',
+                    color: lang === l ? TZ.ink : TZ.muted,
+                    boxShadow: lang === l ? '0 1px 2px rgba(0,0,0,0.06)' : 'none' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
 
           <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -117,7 +138,7 @@ export default function LoginPage({ onLogin }) {
             {/* Phone */}
             <div>
               <label style={{ display: 'block', fontFamily: TZ.sans, fontSize: 12, fontWeight: 700,
-                color: TZ.body, marginBottom: 6, letterSpacing: 0.2 }}>Telefon belgisi</label>
+                color: TZ.body, marginBottom: 6, letterSpacing: 0.2 }}>{t('login.phoneLabel')}</label>
               <div style={fieldStyle('phone')}>
                 <span style={{ fontFamily: TZ.mono, fontSize: 13, fontWeight: 700,
                   color: TZ.muted, paddingRight: 10, borderRight: `1.5px solid ${TZ.line}`,
@@ -133,7 +154,7 @@ export default function LoginPage({ onLogin }) {
             {/* Password */}
             <div>
               <label style={{ display: 'block', fontFamily: TZ.sans, fontSize: 12, fontWeight: 700,
-                color: TZ.body, marginBottom: 6, letterSpacing: 0.2 }}>Parol</label>
+                color: TZ.body, marginBottom: 6, letterSpacing: 0.2 }}>{t('login.passwordLabel')}</label>
               <div style={fieldStyle('password')}>
                 <input type={showPw ? 'text' : 'password'} value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -158,7 +179,7 @@ export default function LoginPage({ onLogin }) {
                 transition: 'background 0.15s', letterSpacing: -0.2 }}
               onMouseEnter={e => { if (!busy) e.currentTarget.style.background = TZ.navyDk }}
               onMouseLeave={e => { if (!busy) e.currentTarget.style.background = TZ.navy }}>
-              {busy ? 'Barlanýar…' : 'Ulgama gir'}
+              {busy ? t('login.submitting') : t('login.submit')}
             </button>
           </form>
         </div>
