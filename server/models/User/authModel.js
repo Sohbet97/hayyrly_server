@@ -1,4 +1,5 @@
-const { pool } = require('../../config/db');
+const { Op } = require('sequelize');
+const { OtpCode, sequelize } = require('../../db');
 
 function generateCode() {
     return String(Math.floor(100000 + Math.random() * 900000));
@@ -6,6 +7,9 @@ function generateCode() {
 
 async function createNewCode(phone) {
     const code = generateCode();
+
+    // Kept as raw SQL: this exact INSERT/UPDATE on otp_codes is what the DB trigger
+    // listens on to fire NOTIFY otp_channel (see server.js startOtpListener).
     const query = `
         INSERT INTO otp_codes (phone, code)
         VALUES ($1, $2)
@@ -19,7 +23,7 @@ async function createNewCode(phone) {
     `;
 
     try {
-        const { rows } = await pool.query(query, [phone, code]);
+        const rows = await sequelize.query(query, { bind: [phone, code], type: sequelize.QueryTypes.SELECT });
         return rows[0];
     } catch (error) {
         console.error('Database error in createNewCode:', error.message);
@@ -28,24 +32,21 @@ async function createNewCode(phone) {
 }
 
 async function verifyCode(phone, code) {
-    const { rows } = await pool.query(
-        `SELECT id FROM otp_codes
-         WHERE phone = $1
-           AND code  = $2
-           AND is_used = FALSE
-           AND created_at > NOW() - INTERVAL '5 minutes'
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        [phone, code]
-    );
-    return rows[0] || null;
+    const row = await OtpCode.findOne({
+        where: {
+            phone,
+            code,
+            is_used: false,
+            created_at: { [Op.gt]: sequelize.literal("NOW() - INTERVAL '5 minutes'") },
+        },
+        order: [['created_at', 'DESC']],
+        raw: true,
+    });
+    return row || null;
 }
 
 async function deleteCode(id) {
-    await pool.query(
-        `DELETE FROM otp_codes WHERE id = $1`,
-        [id]
-    );
+    await OtpCode.destroy({ where: { id } });
 }
 
 module.exports = { createNewCode, verifyCode, deleteCode };

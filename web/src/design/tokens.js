@@ -1,3 +1,5 @@
+import { useSelector } from 'react-redux'
+
 export const TZ_LIGHT = {
   navy:       '#0E2A4D',
   navyDk:     '#091E38',
@@ -68,18 +70,34 @@ export function applyTheme(mode) {
   document.body.style.background = mode === 'dark' ? '#0A1424' : '#F0EEE9'
 }
 
+// Reactive palette for use inside React components — unlike the mutable `TZ`
+// singleton above, this subscribes to the redux theme so the component
+// re-renders whenever it changes (instead of relying on an unrelated re-render
+// to pick up the mutation).
+export function useTZ() {
+  const theme = useSelector(state => state.ui.theme)
+  return theme === 'dark' ? TZ_DARK : TZ_LIGHT
+}
+
 // Status definitions
 export const STATUS = {
-  pending:   { ru: 'Garaşýar',  tk: 'Garaşýar',  ck: 'muted',  bk: 'surface3' },
-  assigned:  { ru: 'Bellenen',  tk: 'Bellenen',   ck: 'violet', bk: 'violetSoft' },
-  accepted:  { ru: 'Kabul',     tk: 'Kabul',      ck: 'violet', bk: 'violetSoft' },
-  arrived:   { ru: 'Geldi',     tk: 'Geldi',      ck: 'amber',  bk: 'amberSoft' },
-  on_way:    { ru: 'Ýolda',     tk: 'Ýolda',      ck: 'navy',   bk: 'navySoft' },
-  completed: { ru: 'Tamamlandy',tk: 'Tamamlandy', ck: 'green',  bk: 'greenSoft' },
-  cancelled: { ru: 'Ýatyryldy', tk: 'Ýatyryldy',  ck: 'red',    bk: 'redSoft' },
-  online:    { ru: 'Onlaýn',    tk: 'Onlaýn',     ck: 'green',  bk: 'greenSoft' },
-  busy:      { ru: 'Meşgul',    tk: 'Meşgul',     ck: 'amber',  bk: 'amberSoft' },
-  offline:   { ru: 'Oflaýn',    tk: 'Oflaýn',     ck: 'muted',  bk: 'surface3' },
+  pending:   { ru: 'Ожидает',   tk: 'Garaşýar',  ck: 'muted',  bk: 'surface3' },
+  created:   { ru: 'Ожидает',   tk: 'Garaşýar',  ck: 'muted',  bk: 'surface3' },
+  assigned:  { ru: 'Назначен',  tk: 'Bellenen',   ck: 'violet', bk: 'violetSoft' },
+  accepted:  { ru: 'Принят',    tk: 'Kabul',      ck: 'violet', bk: 'violetSoft' },
+  arrived:   { ru: 'Прибыл',    tk: 'Geldi',      ck: 'amber',  bk: 'amberSoft' },
+  on_way:    { ru: 'В пути',    tk: 'Ýolda',      ck: 'navy',   bk: 'navySoft' },
+  completed: { ru: 'Завершён',  tk: 'Tamamlandy', ck: 'green',  bk: 'greenSoft' },
+  cancelled:           { ru: 'Отменён', tk: 'Ýatyryldy', ck: 'red', bk: 'redSoft' },
+  cancelled_by_user:   { ru: 'Отменён (клиент)',  tk: 'Ýatyryldy (müşderi)', ck: 'red', bk: 'redSoft' },
+  cancelled_by_driver: { ru: 'Отменён (водитель)', tk: 'Ýatyryldy (sürüji)',  ck: 'red', bk: 'redSoft' },
+  online:    { ru: 'Онлайн',    tk: 'Onlaýn',     ck: 'green',  bk: 'greenSoft' },
+  busy:      { ru: 'Занят',     tk: 'Meşgul',     ck: 'amber',  bk: 'amberSoft' },
+  offline:   { ru: 'Офлайн',    tk: 'Oflaýn',     ck: 'muted',  bk: 'surface3' },
+  approved:  { ru: 'Одобрено',  tk: 'Tassyklandy', ck: 'green', bk: 'greenSoft' },
+  rejected:  { ru: 'Отклонено', tk: 'Ret edildi', ck: 'red',   bk: 'redSoft' },
+  paid:      { ru: 'Оплачено',  tk: 'Tölendi',    ck: 'green', bk: 'greenSoft' },
+  refunded:  { ru: 'Возвращено', tk: 'Yzyna gaýtaryldy', ck: 'red', bk: 'redSoft' },
 }
 
 export function statusColors(s) {

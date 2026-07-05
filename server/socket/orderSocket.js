@@ -1,9 +1,11 @@
 const OrderModel     = require('../models/Order/orderModel');
 const redisClient    = require('../service/redisClient');
 const smsService     = require('../service/smsService');
+const { Taxi, CityPricing, User } = require('../db');
 
-const FREE_WAIT_MINUTES  = 3;
-const WAIT_PRICE_PER_MIN = 0.5; // TMT per minute after free period
+// Fallback when a taxi's city has no pricing_config row.
+const DEFAULT_FREE_WAIT_MINUTES  = 3;
+const DEFAULT_WAIT_PRICE_PER_MIN = 0.5; // TMT per minute after free period
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -20,6 +22,11 @@ async function handleOrderCreate(io, socket, data) {
 
     if (!userId || !startAddress || startLat == null || startLng == null || !cityId) {
         return err(socket, 'userId, startAddress, startLat, startLng, cityId are required');
+    }
+
+    const user = await User.findByPk(userId, { raw: true });
+    if (user?.is_blocked) {
+        return err(socket, 'Your account has been blocked from placing orders');
     }
 
     const order = await OrderModel.createOrder({
@@ -107,9 +114,15 @@ async function handleOrderOnWay(io, socket, data) {
     if (!taxiId)  return err(socket, 'Not registered as taxi');
     if (!orderId) return err(socket, 'orderId is required');
 
-    const waitingSec   = await OrderModel.getWaitingSeconds(orderId);
-    const billableMin  = Math.max(0, waitingSec / 60 - FREE_WAIT_MINUTES);
-    const waitingPrice = parseFloat((billableMin * WAIT_PRICE_PER_MIN).toFixed(2));
+    const waitingSec = await OrderModel.getWaitingSeconds(orderId);
+
+    const taxi    = await Taxi.findByPk(taxiId, { raw: true });
+    const pricing = taxi?.city_id ? await CityPricing.findOne({ where: { city_id: taxi.city_id }, raw: true }) : null;
+    const freeWaitMinutes  = pricing ? Number(pricing.free_wait_min)  : DEFAULT_FREE_WAIT_MINUTES;
+    const waitPricePerMin  = pricing ? Number(pricing.wait_price_min) : DEFAULT_WAIT_PRICE_PER_MIN;
+
+    const billableMin  = Math.max(0, waitingSec / 60 - freeWaitMinutes);
+    const waitingPrice = parseFloat((billableMin * waitPricePerMin).toFixed(2));
 
     const updated = await OrderModel.updateOrderStatus(orderId, 'on_way', { waitingPrice });
 

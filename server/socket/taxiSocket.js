@@ -1,5 +1,5 @@
 const redisClient      = require('../service/redisClient');
-const { pool }         = require('../config/db');
+const { sequelize }    = require('../db');
 
 const FLUSH_INTERVAL_MS = 10_000; // писать в PG раз в 10 секунд
 
@@ -7,11 +7,11 @@ const FLUSH_INTERVAL_MS = 10_000; // писать в PG раз в 10 секун�
 const locationDebounce = new Map();
 
 async function upsertLocation(taxiId, lat, lng) {
-    await pool.query(
+    await sequelize.query(
         `INSERT INTO app_data.taxies_locations (taxi_id, location)
          VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography)
          ON CONFLICT (taxi_id) DO UPDATE SET location = EXCLUDED.location`,
-        [taxiId, lng, lat]  // ST_MakePoint(lng, lat) — PostGIS порядок
+        { bind: [taxiId, lng, lat] }  // ST_MakePoint(lng, lat) — PostGIS порядок
     );
     console.log(`💾 Taxi ${taxiId} location saved to PG`);
 }

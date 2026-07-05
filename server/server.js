@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const helmet = require('helmet');
 const pg = require('pg');
 const axios = require('axios');
-const { pool, connectDB } = require('./config/db');
+const { sequelize, connectSequelize } = require('./db');
 require('./config/firebase');
 const { sendOtpPush, encrypt } = require('./service/push.service');
 
@@ -14,6 +14,10 @@ const { initTaxiSocket, flushAndClearDebounce } = require('./socket/taxiSocket')
 const { initOrderSocket } = require('./socket/orderSocket');
 const { initSmsSocket }   = require('./socket/smsSocket');
 const smsService          = require('./service/smsService');
+const swaggerUi           = require('swagger-ui-express');
+const openapiSpec         = require('./docs/openapi');
+const logger              = require('./utils/logger');
+const requestLogger       = require('./middleware/requestLogger');
 
 const app = express();
 const server = http.createServer(app);
@@ -21,7 +25,13 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(helmet());
 app.use(express.json());
+app.use(requestLogger);
 app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
+
+// Swagger/OpenAPI docs — helmet's default CSP blocks swagger-ui's inline
+// script/style tags, so it's dropped just for this path.
+app.use('/api/docs', (req, res, next) => { res.removeHeader('Content-Security-Policy'); next(); },
+    swaggerUi.serve, swaggerUi.setup(openapiSpec));
 
 // routes
 const routes = {
@@ -34,6 +44,9 @@ const routes = {
     balanceRouter: require('./routes/balanceRouter'),
     orderRouter: require('./routes/order/orderRouter'),
     mapRouter:   require('./routes/mapRouter'),
+    adminRouter: require('./modules/admin/routes'),
+    publicPricingRouter: require('./modules/admin/routes/publicPricingRouter'),
+    publicApplicationRouter: require('./modules/admin/routes/publicApplicationRouter'),
 };
 
 app.use('/api/users', routes.userRouter);
@@ -45,6 +58,9 @@ app.use('/api/services', routes.serviceRouter);
 app.use('/api/balance', routes.balanceRouter);
 app.use('/api/orders', routes.orderRouter);
 app.use('/api/map', routes.mapRouter);
+app.use('/api/admin', routes.adminRouter);
+app.use('/api/pricing', routes.publicPricingRouter);
+app.use('/api/driver-applications', routes.publicApplicationRouter);
 
 // register FCM token for OTP delivery
 app.post('/api/otp/device', async (req, res) => {
@@ -52,14 +68,15 @@ app.post('/api/otp/device', async (req, res) => {
         const { phone, token } = req.body;
         if (!phone || !token) return res.status(400).json({ status: false, message: 'phone and token required' });
 
-        await pool.query(
+        await sequelize.query(
             `INSERT INTO device_tokens (phone, fcm_token)
              VALUES ($1, $2)
              ON CONFLICT (phone) DO UPDATE SET fcm_token = EXCLUDED.fcm_token, updated_at = NOW()`,
-            [phone, token]
+            { bind: [phone, token] }
         );
         return res.status(200).json({ status: true });
     } catch (error) {
+        logger.error('POST /api/otp/device failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ status: false, message: error.message });
     }
 });
@@ -76,6 +93,7 @@ app.get('/api/route', async (req, res) => {
         );
         res.json(response.data.routes[0]);
     } catch (err) {
+        logger.error('GET /api/route failed', { error: err.message, stack: err.stack });
         res.status(500).json({ error: 'Маршрут не найден' });
     }
 });
@@ -90,9 +108,10 @@ app.get('/search', async (req, res) => {
             WHERE name ILIKE $1
             LIMIT 10
         `;
-        const result = await pool.query(query, [`%${name}%`]);
-        res.json(result.rows);
+        const rows = await sequelize.query(query, { bind: [`%${name}%`], type: sequelize.QueryTypes.SELECT });
+        res.json(rows);
     } catch (err) {
+        logger.error('GET /search failed', { error: err.message, stack: err.stack });
         res.status(500).json({ error: 'Ошибка поиска в базе данных' });
     }
 });
@@ -117,11 +136,11 @@ io.on('connection', (socket) => {
         onlinePhones.add(phone);
 
         if (token) {
-            await pool.query(
+            await sequelize.query(
                 `INSERT INTO device_tokens (phone, fcm_token)
                  VALUES ($1, $2)
                  ON CONFLICT (phone) DO UPDATE SET fcm_token = EXCLUDED.fcm_token, updated_at = NOW()`,
-                [phone, token]
+                { bind: [phone, token] }
             );
         }
         console.log(`📱 ${phone} connected`);
@@ -146,11 +165,11 @@ io.on('connection', (socket) => {
 
 // ─── OTP NOTIFY listener ─────────────────────────────────────
 async function markOtpAsSended(id) {
-    const result = await pool.query(
+    const rows = await sequelize.query(
         `UPDATE otp_codes SET is_sended = TRUE WHERE id = $1 AND is_sended = FALSE RETURNING id`,
-        [id]
+        { bind: [id], type: sequelize.QueryTypes.SELECT }
     );
-    return result.rowCount > 0;
+    return rows.length > 0;
 }
 
 async function startOtpListener() {
@@ -191,14 +210,14 @@ async function startOtpListener() {
             pushSent = true;
             console.log('📡 OTP via socket to', randomPhone);
         } else {
-            const { rows } = await pool.query('SELECT fcm_token FROM device_tokens');
+            const rows = await sequelize.query('SELECT fcm_token FROM device_tokens', { type: sequelize.QueryTypes.SELECT });
             for (const row of rows) {
                 const ok = await sendOtpPush(row.fcm_token, id, code, phone);
                 if (ok) {
                     pushSent = true;
                     break;
                 }
-                await pool.query('DELETE FROM device_tokens WHERE fcm_token = $1', [row.fcm_token]);
+                await sequelize.query('DELETE FROM device_tokens WHERE fcm_token = $1', { bind: [row.fcm_token] });
             }
         }
 
@@ -212,14 +231,14 @@ const PORT = process.env.PORT || 3000;
 const start = async () => {
     try {
         await redisClient.connect();
-        console.log('Redis Cache started');
+        logger.info('Redis Cache started');
     } catch (err) {
-        console.warn('Redis not available:', err.message);
+        logger.warn('Redis not available', { error: err.message });
     }
-    
-    await connectDB();
+
+    await connectSequelize();
     await startOtpListener();
-    server.listen(PORT, () => console.log(`🚀 Server started on port ${PORT}`));
+    server.listen(PORT, () => logger.info(`Server started on port ${PORT}`));
 };
 
 start();

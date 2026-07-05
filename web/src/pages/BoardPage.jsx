@@ -1,20 +1,17 @@
 import { useState } from 'react'
-import { Plus, MoreHorizontal, MapPin, ArrowRight } from 'lucide-react'
+import { useSelector } from 'react-redux'
+import { MapPin, ArrowRight } from 'lucide-react'
 import { AdminShell } from '../components/shell/AdminShell.jsx'
 import { Avatar } from '../design/atoms.jsx'
-import { TZ, STATUS } from '../design/tokens.js'
-import { ORDERS, DRIVERS } from '../data/mock.js'
-
-const COLS = [
-  { id: 'pending',   dot: TZ.muted,  accent: TZ.muted,  soft: TZ.surface3  },
-  { id: 'accepted',  dot: '#5B4FC9', accent: '#5B4FC9', soft: '#ECEAFB'    },
-  { id: 'arrived',   dot: '#C98612', accent: '#C98612', soft: '#FCF1DA'    },
-  { id: 'on_way',    dot: TZ.navy,   accent: TZ.navy,   soft: TZ.navySoft  },
-  { id: 'completed', dot: TZ.green,  accent: TZ.green,  soft: TZ.greenSoft },
-]
+import { AssignDriverMenu } from '../components/orders/AssignDriverMenu.jsx'
+import { useTZ, STATUS } from '../design/tokens.js'
+import { useApi } from '../api/useApi.js'
+import { listOrders, updateOrderStatus, assignDriver } from '../api/orders.js'
+import { listDrivers } from '../api/drivers.js'
+import { useT } from '../i18n/useT.js'
 
 const TRANSITIONS = {
-  pending:   ['accepted'],
+  created:   ['accepted'],
   accepted:  ['arrived', 'on_way'],
   arrived:   ['on_way'],
   on_way:    ['completed'],
@@ -22,33 +19,82 @@ const TRANSITIONS = {
 }
 
 export default function BoardPage({ shell }) {
-  const [orders, setOrders] = useState(ORDERS)
+  const lang = useSelector(state => state.ui.lang)
+  const TZ = useTZ()
+  const t = useT()
 
-  function move(id, status) {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o))
+  const COLS = [
+    { id: 'created',   dot: TZ.muted,  accent: TZ.muted,  soft: TZ.surface3  },
+    { id: 'accepted',  dot: '#5B4FC9', accent: '#5B4FC9', soft: '#ECEAFB'    },
+    { id: 'arrived',   dot: '#C98612', accent: '#C98612', soft: '#FCF1DA'    },
+    { id: 'on_way',    dot: TZ.navy,   accent: TZ.navy,   soft: TZ.navySoft  },
+    { id: 'completed', dot: TZ.green,  accent: TZ.green,  soft: TZ.greenSoft },
+  ]
+
+  const { data, error, reload } = useApi(() => listOrders({ limit: 200 }), [])
+  const orders = data?.data ?? []
+
+  const { data: driversData } = useApi(() => listDrivers({ isActive: true, limit: 200 }), [])
+  const driverOptions = (driversData?.data ?? []).map(d => ({
+    id: d.id, name: `${d.first_name} ${d.last_name}`.trim(), online: !!d.is_active,
+  }))
+
+  const [pending, setPending] = useState(null)
+  const [dragId, setDragId] = useState(null)
+  const [overCol, setOverCol] = useState(null)
+
+  const draggedOrder = orders.find(o => o.id === dragId)
+  const dropTargets = draggedOrder ? (TRANSITIONS[draggedOrder.status] ?? []) : []
+
+  function onDrop(colId) {
+    setOverCol(null)
+    if (!dragId || !dropTargets.includes(colId)) return
+    move(dragId, colId)
+    setDragId(null)
+  }
+
+  async function move(id, status) {
+    setPending(id)
+    try {
+      await updateOrderStatus(id, status)
+      reload()
+    } catch (err) {
+      alert(err.message || t('board.transitionError'))
+    } finally {
+      setPending(null)
+    }
+  }
+
+  async function assign(id, taxiId) {
+    setPending(id)
+    try {
+      await assignDriver(id, taxiId)
+      reload()
+    } catch (err) {
+      alert(err.message || t('common.assignError'))
+    } finally {
+      setPending(null)
+    }
   }
 
   return (
     <AdminShell {...shell}
       active="board"
-      title="Status tagtasy"
-      subtitle="Sargydyň statusyny üýtgetmek üçin düwmä basyň"
-      actions={
-        <button type="button"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-            border: 0, borderRadius: 8, background: TZ.navy, color: '#fff',
-            fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-          <Plus size={13} /> Täze sargyt
-        </button>
-      }
+      title={t('board.title')}
+      subtitle={t('board.subtitle')}
     >
+      {error && (
+        <div style={{ padding: 16, fontFamily: TZ.sans, fontSize: 13, color: TZ.red }}>{error.message}</div>
+      )}
       <div style={{ display: 'flex', gap: 12, height: '100%', padding: 16,
         overflowX: 'auto', overflowY: 'hidden' }}>
 
         {COLS.map(col => {
-          const s     = STATUS[col.id]
-          const items = orders.filter(o => o.status === col.id)
-          const nexts = TRANSITIONS[col.id] ?? []
+          const s        = STATUS[col.id]
+          const items    = orders.filter(o => o.status === col.id)
+          const nexts    = TRANSITIONS[col.id] ?? []
+          const isTarget = dragId != null && dropTargets.includes(col.id)
+          const isOver   = overCol === col.id && isTarget
 
           return (
             <div key={col.id} style={{ width: 244, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -57,73 +103,83 @@ export default function BoardPage({ shell }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '2px 2px 6px' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: col.dot, flexShrink: 0 }} />
                 <span style={{ fontFamily: TZ.sans, fontSize: 13.5, fontWeight: 700, color: TZ.ink, flex: 1 }}>
-                  {s?.tk}
+                  {s?.[lang] ?? s?.tk}
                 </span>
                 <span style={{ fontFamily: TZ.mono, fontSize: 11, fontWeight: 700, color: col.accent,
                   background: col.soft, borderRadius: 10, padding: '2px 9px' }}>
                   {items.length}
                 </span>
-                <button type="button" style={{ background: 'none', border: 0, cursor: 'pointer',
-                  color: TZ.faint, padding: 2, display: 'flex' }}>
-                  <MoreHorizontal size={15} />
-                </button>
               </div>
 
               {/* Cards */}
-              <div style={{
+              <div
+                onDragOver={e => { if (isTarget) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverCol(col.id) } }}
+                onDragLeave={() => setOverCol(prev => (prev === col.id ? null : prev))}
+                onDrop={e => { e.preventDefault(); onDrop(col.id) }}
+                style={{
                 flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8,
-                padding: col.id === 'pending' ? 8 : 0,
-                background: col.id === 'pending' ? TZ.surface2 : 'transparent',
-                border: col.id === 'pending' ? `1.5px dashed ${TZ.line}` : 'none',
-                borderRadius: col.id === 'pending' ? 10 : 0,
+                padding: col.id === 'created' ? 8 : 0,
+                background: isOver ? col.soft : (col.id === 'created' ? TZ.surface2 : 'transparent'),
+                border: isTarget ? `1.5px dashed ${col.accent}` : (col.id === 'created' ? `1.5px dashed ${TZ.line}` : '1.5px solid transparent'),
+                borderRadius: col.id === 'created' || isTarget ? 10 : 0,
                 minHeight: 64,
+                transition: 'background 0.12s, border-color 0.12s',
               }}>
                 {items.map(o => {
-                  const driver = DRIVERS.find(d => d.id === o.driver)
+                  const driverName = o.driver_id ? `${o.driver_first_name ?? ''} ${o.driver_last_name ?? ''}`.trim() : null
+                  const canDrag = (TRANSITIONS[o.status] ?? []).length > 0
                   return (
-                    <div key={o.id} style={{
+                    <div key={o.id}
+                      draggable={canDrag}
+                      onDragStart={e => { setDragId(o.id); e.dataTransfer.effectAllowed = 'move' }}
+                      onDragEnd={() => { setDragId(null); setOverCol(null) }}
+                      style={{
                       background: TZ.surface, border: `1px solid ${TZ.line}`, borderRadius: 10,
                       padding: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                       display: 'flex', flexDirection: 'column', gap: 9,
+                      opacity: pending === o.id ? 0.6 : (dragId === o.id ? 0.4 : 1),
+                      cursor: canDrag ? 'grab' : 'default',
                     }}>
                       {/* Header row */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontFamily: TZ.mono, fontSize: 11, fontWeight: 700, color: TZ.muted }}>
-                          {o.id}
+                          #{o.id}
                         </span>
-                        <span style={{ fontFamily: TZ.mono, fontSize: 10.5, color: TZ.faint }}>{o.created}</span>
+                        <span style={{ fontFamily: TZ.mono, fontSize: 10.5, color: TZ.faint }}>
+                          {new Date(o.created_at).toLocaleTimeString()}
+                        </span>
                       </div>
 
                       {/* Client */}
                       <div style={{ fontFamily: TZ.sans, fontSize: 13, fontWeight: 700, color: TZ.ink, lineHeight: 1.3 }}>
-                        {o.client}
+                        {o.client_name ?? '—'}
                       </div>
 
                       {/* Destination */}
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5,
                         fontFamily: TZ.sans, fontSize: 11.5, color: TZ.body }}>
                         <MapPin size={12} color={TZ.orange} style={{ marginTop: 1, flexShrink: 0 }} />
-                        <span style={{ lineHeight: 1.4 }}>{o.to}</span>
+                        <span style={{ lineHeight: 1.4 }}>{o.end_address ?? '—'}</span>
                       </div>
 
                       {/* Driver + price */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {driver ? (
+                        {driverName ? (
                           <>
-                            <Avatar name={driver.name} size={18} color={driver.color} />
+                            <Avatar name={driverName} size={18} color={TZ.navy} />
                             <span style={{ fontFamily: TZ.sans, fontSize: 11.5, fontWeight: 600,
                               color: TZ.body, flex: 1 }}>
-                              {driver.name.split(' ')[0]}
+                              {driverName.split(' ')[0]}
                             </span>
                           </>
                         ) : (
-                          <span style={{ flex: 1, fontFamily: TZ.sans, fontSize: 11.5, fontWeight: 600,
-                            color: TZ.orange, display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Plus size={10} /> Belle
-                          </span>
+                          <AssignDriverMenu drivers={driverOptions} busy={pending === o.id}
+                            label={t('common.assign')} searchPlaceholder={t('common.searchDriver')}
+                            emptyLabel={t('common.noDrivers')}
+                            onSelect={taxiId => assign(o.id, taxiId)} />
                         )}
                         <span style={{ fontFamily: TZ.sans, fontSize: 12.5, fontWeight: 700, color: TZ.ink }}>
-                          {o.price.toFixed(0)} T
+                          {Number(o.total_price ?? o.base_price ?? 0).toFixed(0)} TMT
                         </span>
                       </div>
 
@@ -132,8 +188,8 @@ export default function BoardPage({ shell }) {
                         <div style={{ display: 'flex', gap: 5, paddingTop: 8,
                           borderTop: `1px solid ${TZ.lineSoft}` }}>
                           {nexts.map(next => (
-                            <TransitionBtn key={next} onClick={() => move(o.id, next)}>
-                              <ArrowRight size={10} /> {STATUS[next]?.tk}
+                            <TransitionBtn key={next} disabled={pending === o.id} onClick={() => move(o.id, next)}>
+                              <ArrowRight size={10} /> {STATUS[next]?.[lang] ?? STATUS[next]?.tk}
                             </TransitionBtn>
                           ))}
                         </div>
@@ -145,7 +201,7 @@ export default function BoardPage({ shell }) {
                 {items.length === 0 && (
                   <div style={{ padding: '20px 0', textAlign: 'center',
                     fontFamily: TZ.sans, fontSize: 12, color: TZ.faint }}>
-                    Sargyt ýok
+                    {t('common.noOrders')}
                   </div>
                 )}
               </div>
@@ -157,25 +213,16 @@ export default function BoardPage({ shell }) {
   )
 }
 
-function TransitionBtn({ children, onClick }) {
+function TransitionBtn({ children, onClick, disabled }) {
+  const TZ = useTZ()
   return (
-    <button type="button" onClick={onClick}
+    <button type="button" onClick={onClick} disabled={disabled}
       style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-        padding: '5px 6px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap',
-        fontFamily: TZ.sans, fontSize: 11, fontWeight: 600,
+        padding: '5px 6px', borderRadius: 6, cursor: disabled ? 'default' : 'pointer', whiteSpace: 'nowrap',
+        fontFamily: TZ.sans, fontSize: 11, fontWeight: 600, opacity: disabled ? 0.5 : 1,
         border: `1px solid ${TZ.line}`, background: TZ.surface2, color: TZ.muted,
         transition: 'all 0.12s',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.borderColor = TZ.navy
-        e.currentTarget.style.color = TZ.navy
-        e.currentTarget.style.background = TZ.navySoft
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.borderColor = TZ.line
-        e.currentTarget.style.color = TZ.muted
-        e.currentTarget.style.background = TZ.surface2
       }}>
       {children}
     </button>

@@ -1,4 +1,4 @@
-const { pool } = require('../config/db');
+const { User, Taxi } = require('../db');
 
 let _io = null;
 
@@ -13,19 +13,13 @@ function send(toPhone, message) {
 }
 
 async function sendByUserId(userId, message) {
-    const { rows } = await pool.query(
-        'SELECT phone FROM users WHERE id = $1',
-        [userId],
-    );
-    if (rows[0]?.phone) send(rows[0].phone, message);
+    const row = await User.findByPk(userId, { attributes: ['phone'], raw: true });
+    if (row?.phone) send(row.phone, message);
 }
 
 async function sendByTaxiId(taxiId, message) {
-    const { rows } = await pool.query(
-        'SELECT phone FROM taxies WHERE id = $1',
-        [taxiId],
-    );
-    if (rows[0]?.phone) send(rows[0].phone, message);
+    const row = await Taxi.findByPk(taxiId, { attributes: ['phone'], raw: true });
+    if (row?.phone) send(row.phone, message);
 }
 
 module.exports = { init, send, sendByUserId, sendByTaxiId };

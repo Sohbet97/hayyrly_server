@@ -1,4 +1,4 @@
-const { pool } = require('../../config/db');
+const { sequelize } = require('../../db');
 
 // ─── CREATE ──────────────────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ async function createOrder({ userId, startAddress, endAddress, startLat, startLn
         paymentType ?? 'cash',
         basePrice ?? 0,
     ];
-    const { rows } = await pool.query(query, values);
+    const rows = await sequelize.query(query, { bind: values, type: sequelize.QueryTypes.SELECT });
     return rows[0];
 }
 
@@ -44,7 +44,7 @@ async function getOrderById(orderId) {
         FROM app_data.taxi_orders o
         WHERE o.id = $1
     `;
-    const { rows } = await pool.query(query, [orderId]);
+    const rows = await sequelize.query(query, { bind: [orderId], type: sequelize.QueryTypes.SELECT });
     return rows[0] ?? null;
 }
 
@@ -76,7 +76,7 @@ async function getOrdersByUser(userId, { status, paymentType } = {}, { limit = 2
         ORDER BY o.created_at DESC
         LIMIT $${idx++} OFFSET $${idx}
     `;
-    const { rows } = await pool.query(query, values);
+    const rows = await sequelize.query(query, { bind: values, type: sequelize.QueryTypes.SELECT });
     return {
         data:  rows,
         total: rows[0] ? Number(rows[0].total_count) : 0,
@@ -113,7 +113,7 @@ async function getOrdersByTaxi(taxiId, { status, paymentType } = {}, { limit = 2
         ORDER BY o.created_at DESC
         LIMIT $${idx++} OFFSET $${idx}
     `;
-    const { rows } = await pool.query(query, values);
+    const rows = await sequelize.query(query, { bind: values, type: sequelize.QueryTypes.SELECT });
     return {
         data:  rows,
         total: rows[0] ? Number(rows[0].total_count) : 0,
@@ -141,7 +141,7 @@ async function getActiveOrdersInCity(cityId, { limit = 50, offset = 0 } = {}) {
         ORDER BY o.created_at ASC
         LIMIT $2 OFFSET $3
     `;
-    const { rows } = await pool.query(query, [cityId, limit, offset]);
+    const rows = await sequelize.query(query, { bind: [cityId, limit, offset], type: sequelize.QueryTypes.SELECT });
     return {
         data:  rows,
         total: rows[0] ? Number(rows[0].total_count) : 0,
@@ -153,10 +153,7 @@ async function getActiveOrdersInCity(cityId, { limit = 50, offset = 0 } = {}) {
 // ─── STATUS UPDATE ────────────────────────────────────────────────────────────
 
 async function updateOrderStatus(orderId, status, extra = {}) {
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-
+    return sequelize.transaction(async (t) => {
         const fields = ['status = $2', 'updated_at = NOW()'];
         const values = [orderId, status];
         let idx = 3;
@@ -171,21 +168,24 @@ async function updateOrderStatus(orderId, status, extra = {}) {
             WHERE id = $1
             RETURNING *
         `;
-        const { rows } = await client.query(updateQuery, values);
+        const rows = await sequelize.query(updateQuery, { bind: values, type: sequelize.QueryTypes.SELECT, transaction: t });
 
-        await client.query(
+        await sequelize.query(
             `INSERT INTO app_data.taxi_order_logs (order_id, status) VALUES ($1, $2)`,
-            [orderId, status]
+            { bind: [orderId, status], transaction: t }
         );
 
-        await client.query('COMMIT');
+        if (status === 'completed' && rows[0]) {
+            await sequelize.query(
+                `INSERT INTO app_data.payments (order_id, user_id, taxi_id, amount, payment_type)
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (order_id) DO NOTHING`,
+                { bind: [orderId, rows[0].user_id, rows[0].taxi_id, rows[0].total_price, rows[0].payment_type], transaction: t }
+            );
+        }
+
         return rows[0] ?? null;
-    } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-    } finally {
-        client.release();
-    }
+    });
 }
 
 // ─── TRACKING ─────────────────────────────────────────────────────────────────
@@ -195,7 +195,7 @@ async function addTrackPoint(orderId, lat, lng) {
         INSERT INTO app_data.taxi_order_tracks (order_id, location)
         VALUES ($1, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography)
     `;
-    await pool.query(query, [orderId, lat, lng]);
+    await sequelize.query(query, { bind: [orderId, lat, lng] });
 }
 
 async function getTrackByOrder(orderId) {
@@ -208,7 +208,7 @@ async function getTrackByOrder(orderId) {
         WHERE order_id = $1
         ORDER BY recorded_at ASC
     `;
-    const { rows } = await pool.query(query, [orderId]);
+    const rows = await sequelize.query(query, { bind: [orderId], type: sequelize.QueryTypes.SELECT });
     return rows;
 }
 
@@ -221,7 +221,7 @@ async function getLogsByOrder(orderId) {
         WHERE order_id = $1
         ORDER BY changed_at ASC
     `;
-    const { rows } = await pool.query(query, [orderId]);
+    const rows = await sequelize.query(query, { bind: [orderId], type: sequelize.QueryTypes.SELECT });
     return rows;
 }
 
@@ -234,7 +234,7 @@ async function getWaitingSeconds(orderId) {
                 (SELECT changed_at FROM app_data.taxi_order_logs WHERE order_id = $1 AND status = 'arrived' ORDER BY changed_at DESC LIMIT 1)
             ))::int AS waiting_seconds
     `;
-    const { rows } = await pool.query(query, [orderId]);
+    const rows = await sequelize.query(query, { bind: [orderId], type: sequelize.QueryTypes.SELECT });
     return rows[0]?.waiting_seconds ?? 0;
 }
 

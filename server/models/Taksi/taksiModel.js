@@ -1,11 +1,11 @@
-const {pool} = require('../../config/db');
+const { Taxi, sequelize } = require('../../db');
 
 async function createNewTaksi({
     data
-}) { 
+}) {
     try {
         const {
-            firstName, 
+            firstName,
             lastName,
             phone,
             birthday,
@@ -16,24 +16,32 @@ async function createNewTaksi({
             modelId,
             autoYear,
             isActive,
-            avatar, 
+            avatar,
             carImage,
             taksiPark
         } = data;
 
-        const query = `
-        INSERT INTO  app_data.taxies(
-	        first_name, last_name, phone, birthday, user_id, city_id, avatar, auto_number, marka_id, model_id, auto_year, auto_image, is_active, park)
-	    VALUES( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING * ;`
-        const values = [
-            firstName, lastName, phone, birthday, userId, cityId, avatar, autoNumber, markaId, modelId, autoYear, carImage, isActive, taksiPark
-        ];
-        const { rows } = await pool.query(query, values);
-        return rows;
+        const row = await Taxi.create({
+            first_name: firstName,
+            last_name: lastName,
+            phone,
+            birthday,
+            user_id: userId,
+            city_id: cityId,
+            avatar,
+            auto_number: autoNumber,
+            marka_id: markaId,
+            model_id: modelId,
+            auto_year: autoYear,
+            auto_image: carImage,
+            is_active: isActive,
+            park: taksiPark,
+        });
+        return [row.get({ plain: true })];
     } catch (error) {
         throw error;
     }
-    
+
 }
 
 
@@ -63,7 +71,10 @@ async function getNearbyTaxis({ lat, lng, radiusMeters = 3000 }) {
             )
             ORDER BY distance_m
         `;
-        const { rows } = await pool.query(query, [lat, lng, radiusMeters]);
+        const rows = await sequelize.query(query, {
+            bind: [lat, lng, radiusMeters],
+            type: sequelize.QueryTypes.SELECT,
+        });
         return rows;
     } catch (error) {
         throw error;
@@ -79,49 +90,45 @@ async function getTaksis(filter) {
 
 }
 
-async function updateTaksi({newData}) { 
+async function updateTaksi({ newData }) {
     try {
-        
+
     } catch (error) {
         throw error;
     }
-    
+
 }
 
-async function deleteTaksi(taksiId) { 
+async function deleteTaksi(taksiId) {
     try {
-        const query = `DELETE FROM taxies WHERE id = $1 RETURNING *`;
-        const {rows} = await pool.query(query,[taksiId]);
-        return rows;
+        const existing = await Taxi.findByPk(taksiId, { raw: true });
+        if (!existing) {
+            return [];
+        }
+        await Taxi.destroy({ where: { id: taksiId } });
+        return [existing];
     } catch (error) {
         throw error;
-    }    
+    }
 }
 
 async function getTaksiByUserId(userId) {
     try {
-        const query = 'SELECT * FROM app_data.taxies WHERE user_id = $1 LIMIT 1';
-        const { rows } = await pool.query(query, [userId]);
-        return rows[0] ?? null;
+        const row = await Taxi.findOne({ where: { user_id: userId }, raw: true });
+        return row ?? null;
     } catch (error) {
         throw error;
     }
 }
 
-async function getTaksiById(taksiId) { 
+async function getTaksiById(taksiId) {
     try {
-        const query = 'SELECT * FROM taxies WHERE id = $1';
-        const { rows } = await pool.query(query, [taksiId]);
-
-        if( rows.length === 0) {
-            return null;
-        }
-
-        return rows[0];
+        const row = await Taxi.findByPk(taksiId, { raw: true });
+        return row ?? null;
     } catch (error) {
         throw error;
     }
-    
+
 }
 
 module.exports = {

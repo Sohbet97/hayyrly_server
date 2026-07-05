@@ -1,14 +1,11 @@
-const { pool } = require('../../config/db');
+const { Marka, CarModel, sequelize } = require('../../db');
+const { normalizePgError } = require('../../db/pgError');
 
 async function createNewMarka(image = null, name) {
     try {
-       
-        const query = ` 
-            INSERT INTO markas (name, image_url) VALUES ($1, $2)
-            RETURNING id, name, image_url;`;
-        const values = [name, image ?? null];
-        const res = await pool.query(query, values);
-        return res.rows[0];
+        const row = await Marka.create({ name, image_url: image ?? null });
+        const { id, name: n, image_url } = row.get({ plain: true });
+        return { id, name: n, image_url };
     } catch (error) {
         throw error;
     }
@@ -16,83 +13,60 @@ async function createNewMarka(image = null, name) {
 
 async function getAllMarka() {
     try {
-        const query = 'SELECT id, name, image_url FROM markas ORDER BY id DESC;'
-        const res = await pool.query(query);
-        return res.rows;
-
+        const rows = await Marka.findAll({
+            attributes: ['id', 'name', 'image_url'],
+            order: [['id', 'DESC']],
+            raw: true,
+        });
+        return rows;
     } catch (error) {
         throw error;
     }
-
 }
 
 async function deleteMarka(markaId) {
     try {
-        const query = 'DELETE FROM markas WHERE id = $1 RETURNING id, name, image_url;';
-        const res = await pool.query(query, [markaId]);
-        if (res.rowCount === 0) {
+        const existing = await Marka.findByPk(markaId, {
+            attributes: ['id', 'name', 'image_url'],
+            raw: true,
+        });
+        if (!existing) {
             throw new Error('Marka not found');
         }
-        return res.rows[0];
+        await Marka.destroy({ where: { id: markaId } });
+        return existing;
     } catch (error) {
-        throw error;
-
+        throw normalizePgError(error);
     }
-
 }
 
 async function updateMarka(markaId, newData) {
     try {
         const { name, image } = newData;
-        const updates = [];
-        const values = [];
-        let queryIndex = 1;
+        const updates = {};
 
-        if (name) {
-            updates.push(`name = $${queryIndex}`);
-            values.push(name);
-            queryIndex++;
-        }
+        if (name) updates.name = name;
+        if (image) updates.image_url = image;
 
-        if (image) {
-            updates.push(`image_url = $${queryIndex}`);
-            values.push(image);
-            queryIndex++;
-        }
-
-
-        if (updates.length === 0) {
+        if (Object.keys(updates).length === 0) {
             return { message: "Нет данных для обновления" };
         }
 
-
-        values.push(markaId);
-
-
-        const query = `
-            UPDATE markas 
-            SET ${updates.join(', ')} 
-            WHERE id = $${queryIndex}
-            RETURNING *;
-        `;
-
-        const result = await pool.query(query, values);
-        return result.rows[0];
-
+        const [, rows] = await Marka.update(updates, { where: { id: markaId }, returning: true });
+        return rows[0]?.get({ plain: true });
     } catch (error) {
-        throw error;
+        throw normalizePgError(error);
     }
 }
 
 async function getMarkaTree() {
     try {
-        const query = `
-            SELECT m.id, m.name, m.image_url, mo.id as model_id, mo.name as model_name
-            FROM markas m
-            LEFT JOIN models mo ON m.id = mo.marka_id
-        `;
-
-        const { rows } = await pool.query(query);
+        const rows = await sequelize.query(
+            `SELECT m.id, m.name, m.image_url, mo.id as model_id, mo.name as model_name
+             FROM markas m
+             LEFT JOIN models mo ON m.id = mo.marka_id`,
+            { type: sequelize.QueryTypes.SELECT }
+        );
 
         const tree = rows.reduce((acc, row) => {
             let marka = acc.find(item => item.id === row.id);
@@ -130,15 +104,9 @@ async function getMarkaTree() {
 async function createNewModel(data) {
     try {
         const { marka_id, name } = data;
-        const query = `
-            INSERT INTO models (marka_id, name) 
-            VALUES ($1, $2) 
-            RETURNING id, marka_id, name;
-        `;
-        const values = [marka_id, name];
-
-        const { rows } = await pool.query(query, values);
-        return rows[0];
+        const row = await CarModel.create({ marka_id, name });
+        const { id, marka_id: mId, name: n } = row.get({ plain: true });
+        return { id, marka_id: mId, name: n };
     } catch (error) {
         throw error;
     }
@@ -146,73 +114,46 @@ async function createNewModel(data) {
 
 async function deleteModel(modelId) {
     try {
-        const query = 'DELETE FROM models WHERE id = $1 RETURNING *;';
-        const { rows } = await pool.query(query, [modelId]);
-
-        if (rows.length === 0) {
+        const existing = await CarModel.findByPk(modelId, { raw: true });
+        if (!existing) {
             throw new Error("Модель не найдена");
         }
-        return { message: "Модель успешно удалена", deleted: rows[0] };
+        await CarModel.destroy({ where: { id: modelId } });
+        return { message: "Модель успешно удалена", deleted: existing };
     } catch (error) {
-        throw error;
+        throw normalizePgError(error);
     }
-
 }
 
 async function updateModel(modelId, newData) {
     try {
         const { name, marka_id } = newData;
-        const updates = [];
-        const values = [];
-        let index = 1;
+        const updates = {};
 
-        if (name) {
-            updates.push(`name = $${index++}`);
-            values.push(name);
-        }
-        if (marka_id) {
-            updates.push(`marka_id = $${index++}`);
-            values.push(marka_id);
-        }
+        if (name) updates.name = name;
+        if (marka_id) updates.marka_id = marka_id;
 
-        if (updates.length === 0) return null;
+        if (Object.keys(updates).length === 0) return null;
 
-        values.push(modelId);
-        const query = `
-            UPDATE models 
-            SET ${updates.join(', ')} 
-            WHERE id = $${index} 
-            RETURNING *;
-        `;
-
-        const { rows } = await pool.query(query, values);
-        return rows[0];
+        const [, rows] = await CarModel.update(updates, { where: { id: modelId }, returning: true });
+        return rows[0]?.get({ plain: true });
     } catch (error) {
-        throw error;
+        throw normalizePgError(error);
     }
-
 }
 
 
 async function getModels(filter) {
     try {
         const { marka_id } = filter;
-        let query = 'SELECT * FROM models';
-        const values = [];
+        const where = {};
+        if (marka_id) where.marka_id = marka_id;
 
-        if (marka_id) {
-            query += ' WHERE marka_id = $1';
-            values.push(marka_id);
-        }
-
-        query += ' ORDER BY name ASC';
-
-        const { rows } = await pool.query(query, values);
+        const rows = await CarModel.findAll({ where, order: [['name', 'ASC']], raw: true });
         return rows;
     } catch (error) {
         throw error;
     }
-
 }
 
 module.exports = {
