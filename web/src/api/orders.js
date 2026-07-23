@@ -6,6 +6,18 @@ export function listOrders(params) {
   return api.get('/orders', params)
 }
 
+export function getOrder(id) {
+  return api.get(`/orders/${id}`)
+}
+
+export function listMessages(orderId) {
+  return api.get(`/orders/${orderId}/messages`)
+}
+
+export function sendMessage(orderId, body) {
+  return api.post(`/orders/${orderId}/messages`, { body })
+}
+
 // Reuses the existing (mobile-facing) PATCH /api/orders/:id/status endpoint —
 // the admin module doesn't duplicate order-mutation logic.
 export async function updateOrderStatus(id, status, extra = {}) {

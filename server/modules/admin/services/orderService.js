@@ -1,6 +1,32 @@
 const { sequelize } = require('../../../db');
+const OrderModel = require('../../../models/Order/orderModel');
 
 class OrderService {
+    static async getById(orderId) {
+        const [row] = await sequelize.query(`
+            SELECT
+                o.*,
+                ST_Y(o.start_location::geometry) AS start_lat,
+                ST_X(o.start_location::geometry) AS start_lng,
+                CASE WHEN o.end_location IS NOT NULL THEN ST_Y(o.end_location::geometry) ELSE NULL END AS end_lat,
+                CASE WHEN o.end_location IS NOT NULL THEN ST_X(o.end_location::geometry) ELSE NULL END AS end_lng,
+                u.id AS client_id, u.full_name AS client_name, u.phone AS client_phone,
+                t.id AS driver_id, t.first_name AS driver_first_name, t.last_name AS driver_last_name, t.phone AS driver_phone
+            FROM app_data.taxi_orders o
+            JOIN app_data.users u ON u.id = o.user_id
+            LEFT JOIN app_data.taxies t ON t.id = o.taxi_id
+            WHERE o.id = :orderId
+        `, { replacements: { orderId }, type: sequelize.QueryTypes.SELECT });
+
+        if (!row) return null;
+
+        const [logs, track] = await Promise.all([
+            OrderModel.getLogsByOrder(orderId),
+            OrderModel.getTrackByOrder(orderId),
+        ]);
+
+        return { ...row, logs, track };
+    }
     static async list({ status, cityId, limit = 20, page = 1 } = {}) {
         const parsedLimit = parseInt(limit, 10) || 20;
         const parsedPage = parseInt(page, 10) || 1;

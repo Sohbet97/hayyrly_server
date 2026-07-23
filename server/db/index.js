@@ -23,6 +23,7 @@ db.DeviceToken = require('./models/DeviceToken')(sequelize, DataTypes);
 db.Taxi = require('./models/Taxi')(sequelize, DataTypes);
 db.TaxiOrder = require('./models/TaxiOrder')(sequelize, DataTypes);
 db.TaxiOrderLog = require('./models/TaxiOrderLog')(sequelize, DataTypes);
+db.OrderMessage = require('./models/OrderMessage')(sequelize, DataTypes);
 db.Balance = require('./models/Balance')(sequelize, DataTypes);
 db.BalanceTransaction = require('./models/BalanceTransaction')(sequelize, DataTypes);
 db.Payment = require('./models/Payment')(sequelize, DataTypes);

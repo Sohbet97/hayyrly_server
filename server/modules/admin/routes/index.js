@@ -8,6 +8,7 @@ const PricingController = require('../controllers/pricingController');
 const DriverController = require('../controllers/driverController');
 const ClientController = require('../controllers/clientController');
 const OrderController = require('../controllers/orderController');
+const MessageController = require('../controllers/messageController');
 const TransactionController = require('../controllers/transactionController');
 const PaymentController = require('../controllers/paymentController');
 const TeamController = require('../controllers/teamController');
@@ -31,6 +32,9 @@ router.get('/clients/:userId/orders', ClientController.getOrders);
 router.put('/clients/:userId/status', ClientController.setBlocked);
 
 router.get('/orders', OrderController.list);
+router.get('/orders/:id', OrderController.getById);
+router.get('/orders/:id/messages', MessageController.list);
+router.post('/orders/:id/messages', MessageController.create);
 router.get('/reports/orders', OrderController.summary);
 router.get('/analytics/daily', OrderController.dailyReport);
 router.get('/analytics/by-city', OrderController.ordersByCity);

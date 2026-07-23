@@ -1,4 +1,5 @@
 const OrderModel     = require('../models/Order/orderModel');
+const MessageModel   = require('../models/Message/messageModel');
 const redisClient    = require('../service/redisClient');
 const smsService     = require('../service/smsService');
 const { Taxi, CityPricing, User } = require('../db');
@@ -230,6 +231,19 @@ async function handleOrderTrack(io, socket, data) {
     });
 }
 
+// Client/driver sends a chat message tied to an order → persist + broadcast to the order room
+async function handleChatSend(io, socket, data) {
+    const { orderId, senderType, senderId, body } = data;
+
+    if (!orderId || !senderType || !body) {
+        return err(socket, 'orderId, senderType, body are required');
+    }
+
+    const message = await MessageModel.addMessage({ orderId, senderType, senderId: senderId ?? null, body });
+
+    io.to(`order:${orderId}`).emit('chat:message', message);
+}
+
 // Passenger/observer joins order room to receive live updates
 function handleOrderWatch(socket, data) {
     const { orderId } = data;
@@ -256,6 +270,7 @@ function initOrderSocket(io, socket) {
     wrap('order:complete', handleOrderComplete);
     wrap('order:cancel',   handleOrderCancel);
     wrap('order:track',    handleOrderTrack);
+    wrap('chat:send',      handleChatSend);
 
     socket.on('order:watch', (data) => handleOrderWatch(socket, data));
 }

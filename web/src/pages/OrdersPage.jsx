@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Download, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { AdminShell } from '../components/shell/AdminShell.jsx'
 import { StatusPill, Avatar } from '../design/atoms.jsx'
@@ -14,6 +15,7 @@ const PER = 20
 export default function OrdersPage({ shell }) {
   const TZ = useTZ()
   const t = useT()
+  const navigate = useNavigate()
   const [tab,    setTab]    = useState('all')
   const [search, setSearch] = useState('')
   const [pg,     setPg]     = useState(1)
@@ -163,8 +165,8 @@ export default function OrdersPage({ shell }) {
                 {paged.map(o => {
                   const driverName = o.driver_id ? `${o.driver_first_name ?? ''} ${o.driver_last_name ?? ''}`.trim() : null
                   return (
-                    <tr key={o.id}
-                      style={{ borderBottom: `1px solid ${TZ.lineSoft}`, transition: 'background 0.1s' }}>
+                    <tr key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
+                      style={{ borderBottom: `1px solid ${TZ.lineSoft}`, transition: 'background 0.1s', cursor: 'pointer' }}>
 
                       <td style={{ padding: '13px 16px' }}>
                         <div style={{ fontFamily: TZ.mono, fontSize: 12.5, fontWeight: 700, color: TZ.ink }}>#{o.id}</div>

@@ -22,6 +22,7 @@ const requestLogger       = require('./middleware/requestLogger');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
+app.set('io', io);
 
 app.use(helmet());
 app.use(express.json());

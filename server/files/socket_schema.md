@@ -281,6 +281,35 @@ emit("order:watch", { "orderId": 42 })
 
 ---
 
+### 9. Söhbetdeşlik (Passenger/Driver/Admin → Server)
+
+```json
+emit("chat:send", {
+  "orderId":    42,
+  "senderType": "client",
+  "senderId":   7,
+  "body":       "Salam, men gapyň öňünde"
+})
+// senderType: "client" | "driver" | "admin"
+// senderId — ugradyjynyň users.id ýa-da taxies.id-si (admin üçin admin_users.id, REST arkaly iberilende)
+```
+
+Sargyt otagyndaky ähliler alýar:
+```json
+on("chat:message", {
+  "id":          15,
+  "order_id":    42,
+  "sender_type": "client",
+  "sender_id":   7,
+  "body":        "Salam, men gapyň öňünde",
+  "created_at":  "2026-07-16T10:15:00.000Z"
+})
+```
+
+> Admin panelinden iberilen habarlar REST arkaly (`POST /api/admin/orders/:id/messages`) ýazylýar we şol bir `order:${orderId}` otagyna `chat:message` hökmünde ýaýradylýar.
+
+---
+
 ## Ýalňyşlyk (Error)
 
 Islendik ýalňyşlykda:

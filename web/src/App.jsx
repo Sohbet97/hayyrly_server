@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './auth/LoginPage.jsx'
 import MapPage from './pages/MapPage.jsx'
 import OrdersPage from './pages/OrdersPage.jsx'
+import OrderDetailPage from './pages/OrderDetailPage.jsx'
 import BoardPage from './pages/BoardPage.jsx'
 import DriversPage from './pages/DriversPage.jsx'
 import ClientsPage from './pages/ClientsPage.jsx'
@@ -41,6 +42,7 @@ export default function App() {
       <Routes>
         <Route path="/map"       element={<MapPage       shell={shell} />} />
         <Route path="/orders"    element={<OrdersPage    shell={shell} />} />
+        <Route path="/orders/:id" element={<OrderDetailPage shell={shell} />} />
         <Route path="/board"     element={<BoardPage     shell={shell} />} />
         <Route path="/drivers"   element={<DriversPage   shell={shell} />} />
         <Route path="/clients"   element={<ClientsPage   shell={shell} />} />

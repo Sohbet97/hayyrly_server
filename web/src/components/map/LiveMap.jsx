@@ -160,6 +160,31 @@ export function clearRoute(map, id) {
   if (map.getSource(sid)) map.removeSource(sid)
 }
 
+// ── Actual GPS breadcrumb track (the driven path, as recorded by the driver's
+// phone) — distinct from `drawRoute`'s planned OSRM line, so it gets its own
+// source/layer ids and a visually different (solid green) style.
+
+function drawTrack(map, id, points, color = TZ.green) {
+  const sid = `track-${id}`, lid = `track-line-${id}`
+  clearTrack(map, id)
+  if (!points || points.length < 2) return
+  map.addSource(sid, {
+    type: 'geojson',
+    data: { type: 'Feature', geometry: { type: 'LineString', coordinates: points.map(p => [p.lng, p.lat]) } },
+  })
+  map.addLayer({
+    id: lid, type: 'line', source: sid,
+    layout: { 'line-join': 'round', 'line-cap': 'round' },
+    paint: { 'line-color': color, 'line-width': 4, 'line-opacity': 0.9 },
+  })
+}
+
+function clearTrack(map, id) {
+  const sid = `track-${id}`, lid = `track-line-${id}`
+  if (map.getLayer(lid))  map.removeLayer(lid)
+  if (map.getSource(sid)) map.removeSource(sid)
+}
+
 // The tile server (Martin) serves buildings as `buildings_view`, but the
 // published style.json points at `gis_osm_buildings_a_free_1`, which 404s.
 // Repoint the source + its layers to the name the server actually serves.
@@ -206,7 +231,7 @@ function applyDebugLayer(map, name) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function LiveMap({ style, onReady, debugLayer = '', drivers = [], orders = [], selectedOrder = null }) {
+export default function LiveMap({ style, onReady, debugLayer = '', drivers = [], orders = [], selectedOrder = null, track = [] }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const debugRef = useRef(debugLayer)
@@ -261,26 +286,36 @@ export default function LiveMap({ style, onReady, debugLayer = '', drivers = [],
     endpointMarkersRef.current.forEach(m => m.remove())
     endpointMarkersRef.current = []
     clearRoute(map, 'selected')
+    clearTrack(map, 'selected')
 
     if (!selectedOrder) return
     endpointMarkersRef.current = addOrderEndpointMarkers(map, selectedOrder)
 
+    drawTrack(map, 'selected', track)
+
     const { startLat, startLng, endLat, endLng } = selectedOrder
-    if (startLat == null || startLng == null || endLat == null || endLng == null) return
-
+    const bounds = new maplibregl.LngLatBounds()
+    let hasBounds = false
     let cancelled = false
-    fetchRoute([[startLng, startLat], [endLng, endLat]])
-      .then(geometry => { if (!cancelled) drawRoute(map, 'selected', geometry, TZ.navy) })
-      .catch(() => {})
 
-    const bounds = new maplibregl.LngLatBounds([startLng, startLat], [startLng, startLat])
-    bounds.extend([endLng, endLat])
-    map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 500 })
+    if (startLat != null && startLng != null && endLat != null && endLng != null) {
+      fetchRoute([[startLng, startLat], [endLng, endLat]])
+        .then(geometry => { if (!cancelled) drawRoute(map, 'selected', geometry, TZ.navy) })
+        .catch(() => {})
+
+      bounds.extend([startLng, startLat])
+      bounds.extend([endLng, endLat])
+      hasBounds = true
+    }
+
+    track.forEach(p => { bounds.extend([p.lng, p.lat]); hasBounds = true })
+
+    if (hasBounds) map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 500 })
 
     return () => { cancelled = true }
     // Keyed on the order's identity + endpoint coords, not the object reference, since
     // MapPage recomputes `selectedOrder` on every live-position tick.
-  }, [mapLoaded, selectedOrder?.id, selectedOrder?.startLat, selectedOrder?.startLng, selectedOrder?.endLat, selectedOrder?.endLng])
+  }, [mapLoaded, selectedOrder?.id, selectedOrder?.startLat, selectedOrder?.startLng, selectedOrder?.endLat, selectedOrder?.endLng, track])
 
   // Re-apply when the selected table changes.
   useEffect(() => {

@@ -337,6 +337,37 @@ export const STRINGS = {
     statCities:     { tk: 'Şäher',                 ru: 'Города' },
     statSupport:    { tk: 'Goldaw',                ru: 'Поддержка' },
   },
+
+  orderDetail: {
+    title:          { tk: 'Sargyt',                ru: 'Заказ' },
+    back:           { tk: 'Yza',                   ru: 'Назад' },
+    notFound:       { tk: 'Sargyt tapylmady',      ru: 'Заказ не найден' },
+    sectionMap:     { tk: 'Ugur we ýol',           ru: 'Маршрут и путь' },
+    sectionTimeline:{ tk: 'Status taryhy',         ru: 'История статусов' },
+    sectionChat:    { tk: 'Söhbetdeşlik',          ru: 'Переписка' },
+    plannedRoute:   { tk: 'Meýilleşdirilen ugur',  ru: 'Плановый маршрут' },
+    actualTrack:    { tk: 'Hakyky ýol',            ru: 'Фактический путь' },
+    noTrack:        { tk: 'GPS maglumaty ýok',     ru: 'Нет GPS-данных' },
+    noLogs:         { tk: 'Taryh ýok',             ru: 'История пуста' },
+    client:         { tk: 'Müşderi',               ru: 'Клиент' },
+    driver:         { tk: 'Sürüji',                ru: 'Водитель' },
+    unassigned:     { tk: 'Bellenmedik',           ru: 'Не назначен' },
+    price:          { tk: 'Baha',                  ru: 'Цена' },
+    distance:       { tk: 'Aralyk',                ru: 'Расстояние' },
+    from:           { tk: 'Başlangyç',             ru: 'Начало' },
+    to:             { tk: 'Barmaly ýer',           ru: 'Пункт назначения' },
+    loadError:      { tk: 'Sargyt ýüklenmedi',     ru: 'Не удалось загрузить заказ' },
+  },
+
+  chat: {
+    placeholder:    { tk: 'Habar ýazyň…',          ru: 'Напишите сообщение…' },
+    send:           { tk: 'Ugrat',                 ru: 'Отправить' },
+    empty:          { tk: 'Heniz habar ýok',       ru: 'Пока нет сообщений' },
+    senderAdmin:    { tk: 'Admin',                 ru: 'Админ' },
+    senderClient:   { tk: 'Müşderi',               ru: 'Клиент' },
+    senderDriver:   { tk: 'Sürüji',                ru: 'Водитель' },
+    sendError:      { tk: 'Habar iberilmedi',      ru: 'Не удалось отправить' },
+  },
 }
 
 export function translate(lang, path) {
