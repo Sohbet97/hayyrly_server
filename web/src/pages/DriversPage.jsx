@@ -1,11 +1,16 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, MoreHorizontal, Phone, X, Check, Wallet, ChevronLeft, ChevronRight } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { StatusPill, Avatar } from '../design/atoms.jsx'
 import { useTZ } from '../design/tokens.js'
 import { useApi } from '../api/useApi.js'
-import { listDrivers, adjustBalance, setDriverActive } from '../api/drivers.js'
+import { mediaUrl } from '../api/client.js'
+import { listDrivers, adjustBalance, setDriverActive, createDriver } from '../api/drivers.js'
 import { listApplications, approveApplication, rejectApplication } from '../api/applications.js'
+import { listCities } from '../api/cities.js'
+import { listMarkas } from '../api/cars.js'
+import { DriverFormModal } from '../components/drivers/DriverFormModal.jsx'
 import { useT } from '../i18n/useT.js'
 
 const DRIVER_COLORS = ['#0E2A4D', '#C98612', '#5B4FC9', '#1B8F5A', '#C24536']
@@ -17,6 +22,7 @@ const APPS_PER = 20
 export default function DriversPage({ shell }) {
   const TZ = useTZ()
   const t = useT()
+  const navigate = useNavigate()
   const [tab,      setTab]      = useState('drivers')
   const [search,   setSearch]   = useState('')
   const [activeFilter, setActiveFilter] = useState('all') // all | active | inactive
@@ -29,6 +35,7 @@ export default function DriversPage({ shell }) {
   const [balanceForm, setBalanceForm] = useState({ amount: '', direction: 'add', note: '' })
   const [menuOpenId, setMenuOpenId] = useState(null)
   const [previewImage, setPreviewImage] = useState(null)
+  const [showAddDriver, setShowAddDriver] = useState(false)
 
   const { data: driversData, loading: driversLoading, error: driversError, reload: reloadDrivers } =
     useApi(() => listDrivers({ limit: 300 }), [])
@@ -36,6 +43,11 @@ export default function DriversPage({ shell }) {
     useApi(() => listApplications({ status: appsStatus, limit: 300 }), [appsStatus])
   const { data: pendingData, reload: reloadPending } =
     useApi(() => listApplications({ status: 'pending', limit: 1 }), [])
+  const { data: citiesData } = useApi(() => listCities(), [])
+  const { data: markasData } = useApi(() => listMarkas(), [])
+
+  const cities = citiesData?.data ?? []
+  const markas = markasData?.data ?? []
 
   const allDrivers = driversData?.data ?? []
   const apps       = appsData?.data ?? []
@@ -80,6 +92,12 @@ export default function DriversPage({ shell }) {
     }
   }
 
+  async function saveNewDriver(payload, files) {
+    await createDriver(payload, files)
+    setShowAddDriver(false)
+    reloadDrivers()
+  }
+
   async function submitBalance(e) {
     e.preventDefault()
     try {
@@ -96,20 +114,21 @@ export default function DriversPage({ shell }) {
     }
   }
 
+  usePageHeader({
+    title: t('drivers.title'),
+    subtitle: `${driversData?.total ?? allDrivers.length} ${t('drivers.subtitlePeople')} · ${allDrivers.filter(d => d.is_active).length} ${t('drivers.subtitleActive')} · ${pendingTotal} ${t('drivers.subtitlePendingApps')}`,
+    actions: (
+      <button type="button" onClick={() => setShowAddDriver(true)}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+          border: 0, borderRadius: 8, background: TZ.navy, color: '#fff',
+          fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        <Plus size={13} /> {t('drivers.addDriver')}
+      </button>
+    ),
+  })
+
   return (
-    <AdminShell {...shell}
-      active="drivers"
-      title={t('drivers.title')}
-      subtitle={`${driversData?.total ?? allDrivers.length} ${t('drivers.subtitlePeople')} · ${allDrivers.filter(d => d.is_active).length} ${t('drivers.subtitleActive')} · ${pendingTotal} ${t('drivers.subtitlePendingApps')}`}
-      actions={
-        <button type="button" onClick={() => setTab('apps')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-            border: 0, borderRadius: 8, background: TZ.navy, color: '#fff',
-            fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          <Plus size={13} /> {t('drivers.addDriver')}
-        </button>
-      }
-    >
+    <>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%',
         padding: '14px 16px', gap: 12, overflow: 'hidden' }}>
 
@@ -218,13 +237,13 @@ export default function DriversPage({ shell }) {
                     const name = `${d.first_name} ${d.last_name}`
                     const car  = [d.marka_name, d.model_name].filter(Boolean).join(' ')
                     return (
-                      <div key={d.id} style={{
-                        position: 'relative',
+                      <div key={d.id} onClick={() => navigate(`/drivers/${d.user_id}`)} style={{
+                        position: 'relative', cursor: 'pointer',
                         background: TZ.surface, border: `1px solid ${TZ.line}`, borderRadius: 12,
                         padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
                         opacity: d.is_active ? 1 : 0.75,
                       }}>
-                        <button type="button" onClick={() => setMenuOpenId(menuOpenId === d.id ? null : d.id)}
+                        <button type="button" onClick={e => { e.stopPropagation(); setMenuOpenId(menuOpenId === d.id ? null : d.id) }}
                           style={{ position: 'absolute', top: 10, right: 10, background: 'none', border: 0,
                             cursor: 'pointer', color: TZ.faint, padding: 4, borderRadius: 6, zIndex: 2 }}>
                           <MoreHorizontal size={16} />
@@ -233,7 +252,7 @@ export default function DriversPage({ shell }) {
                           <div style={{ position: 'absolute', top: 34, right: 10, background: TZ.surface,
                             border: `1px solid ${TZ.line}`, borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
                             zIndex: 3, overflow: 'hidden' }}>
-                            <button type="button" onClick={() => toggleActive(d)}
+                            <button type="button" onClick={e => { e.stopPropagation(); toggleActive(d) }}
                               style={{ display: 'block', width: '100%', padding: '8px 14px', border: 0,
                                 background: 'transparent', textAlign: 'left', cursor: 'pointer', whiteSpace: 'nowrap',
                                 fontFamily: TZ.sans, fontSize: 12, fontWeight: 600,
@@ -245,7 +264,7 @@ export default function DriversPage({ shell }) {
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <div style={{ position: 'relative', flexShrink: 0 }}>
-                            <Avatar name={name} size={44} color={colorFor(d.id)} />
+                            <Avatar name={name} size={44} color={colorFor(d.id)} src={mediaUrl(d.avatar)} />
                             <span style={{
                               position: 'absolute', bottom: -1, right: -1, width: 12, height: 12,
                               borderRadius: '50%', border: '2px solid #fff',
@@ -283,7 +302,7 @@ export default function DriversPage({ shell }) {
                         </div>
 
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <a href={d.phone ? `tel:${d.phone}` : undefined} style={{
+                          <a href={d.phone ? `tel:${d.phone}` : undefined} onClick={e => e.stopPropagation()} style={{
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                             padding: '8px 0', borderRadius: 8, cursor: d.phone ? 'pointer' : 'default',
                             fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body,
@@ -292,7 +311,7 @@ export default function DriversPage({ shell }) {
                           }}>
                             <Phone size={13} /> {t('drivers.call')}
                           </a>
-                          <button type="button" onClick={() => setBalanceFor(d)} style={{
+                          <button type="button" onClick={e => { e.stopPropagation(); setBalanceFor(d) }} style={{
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                             padding: '8px 0', borderRadius: 8, cursor: 'pointer',
                             fontFamily: TZ.sans, fontSize: 12, fontWeight: 700, color: '#fff',
@@ -441,7 +460,7 @@ export default function DriversPage({ shell }) {
       {rejectId && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380,
+          <div style={{ background: TZ.surface, borderRadius: 16, padding: 24, width: '100%', maxWidth: 380,
             boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <h3 style={{ fontFamily: TZ.sans, fontSize: 16, fontWeight: 800, color: TZ.ink, margin: 0 }}>{t('drivers.rejectTitle')}</h3>
@@ -455,7 +474,7 @@ export default function DriversPage({ shell }) {
             </p>
             <textarea required value={reason} onChange={e => setReason(e.target.value)} placeholder={t('drivers.rejectPlaceholder')}
               style={{ width: '100%', minHeight: 80, padding: 12, borderRadius: 10,
-                border: `1.5px solid ${TZ.line}`, fontFamily: TZ.sans, fontSize: 13,
+                border: `1.5px solid ${TZ.line}`, background: TZ.surface2, fontFamily: TZ.sans, fontSize: 13,
                 color: TZ.ink, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <button onClick={() => { setRejectId(null); setReason('') }} type="button"
@@ -480,7 +499,7 @@ export default function DriversPage({ shell }) {
       {balanceFor && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <form onSubmit={submitBalance} style={{ background: '#fff', borderRadius: 16, padding: 24,
+          <form onSubmit={submitBalance} style={{ background: TZ.surface, borderRadius: 16, padding: 24,
             width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <h3 style={{ fontFamily: TZ.sans, fontSize: 16, fontWeight: 800, color: TZ.ink, margin: 0 }}>
@@ -509,10 +528,12 @@ export default function DriversPage({ shell }) {
             <input required type="number" step="0.01" placeholder={t('drivers.amountPlaceholder')} value={balanceForm.amount}
               onChange={e => setBalanceForm({ ...balanceForm, amount: e.target.value })}
               style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${TZ.line}`,
+                background: TZ.surface2, color: TZ.ink,
                 fontFamily: TZ.sans, fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
             <input placeholder={t('drivers.notePlaceholder')} value={balanceForm.note}
               onChange={e => setBalanceForm({ ...balanceForm, note: e.target.value })}
               style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${TZ.line}`,
+                background: TZ.surface2, color: TZ.ink,
                 fontFamily: TZ.sans, fontSize: 13, boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <button onClick={() => setBalanceFor(null)} type="button"
@@ -528,6 +549,19 @@ export default function DriversPage({ shell }) {
         </div>
       )}
 
+      {/* ── Add driver modal ── */}
+      {showAddDriver && (
+        <DriverFormModal
+          title={t('drivers.addDriverTitle')}
+          submitLabel={t('drivers.submit')}
+          initialValues={{}}
+          cities={cities}
+          markas={markas}
+          onClose={() => setShowAddDriver(false)}
+          onSave={saveNewDriver}
+        />
+      )}
+
       {/* ── Image lightbox ── */}
       {previewImage && (
         <div onClick={() => setPreviewImage(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
@@ -541,7 +575,7 @@ export default function DriversPage({ shell }) {
             style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: 12, boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }} />
         </div>
       )}
-    </AdminShell>
+    </>
   )
 }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Search, MoreHorizontal, Phone, X, Ban, CheckCircle, History, ChevronLeft, ChevronRight } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { StatusPill, Avatar } from '../design/atoms.jsx'
 import { useTZ } from '../design/tokens.js'
 import { useApi } from '../api/useApi.js'
@@ -73,12 +73,13 @@ export default function ClientsPage({ shell }) {
 
   const blockedCount = allClients.filter(c => c.is_blocked).length
 
+  usePageHeader({
+    title: t('clients.title'),
+    subtitle: `${data?.total ?? allClients.length} ${t('clients.subtitlePeople')} · ${blockedCount} ${t('clients.subtitleBlocked')}`,
+  })
+
   return (
-    <AdminShell {...shell}
-      active="clients"
-      title={t('clients.title')}
-      subtitle={`${data?.total ?? allClients.length} ${t('clients.subtitlePeople')} · ${blockedCount} ${t('clients.subtitleBlocked')}`}
-    >
+    <>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%',
         padding: '14px 16px', gap: 12, overflow: 'hidden' }}>
 
@@ -338,7 +339,7 @@ export default function ClientsPage({ shell }) {
           </div>
         </div>
       )}
-    </AdminShell>
+    </>
   )
 }
 

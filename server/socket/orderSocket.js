@@ -1,4 +1,6 @@
 const OrderModel     = require('../models/Order/orderModel');
+const MessageModel   = require('../models/Message/messageModel');
+const BalanceModel   = require('../models/User/balanceModel');
 const redisClient    = require('../service/redisClient');
 const smsService     = require('../service/smsService');
 const { Taxi, CityPricing, User } = require('../db');
@@ -11,6 +13,34 @@ const DEFAULT_WAIT_PRICE_PER_MIN = 0.5; // TMT per minute after free period
 
 function err(socket, message) {
     socket.emit('order:error', { message });
+}
+
+// Deducts the city's configured commission % from the driver's balance on order completion.
+// Runs after the order is already marked completed — a balance/insufficient-funds failure
+// must never block the ride from completing, so callers catch this separately.
+//
+// - paymentType 'balance' (client paid in-app): normal guarded debit — if the driver's
+//   balance can't cover it, the deduction is skipped/fails and only logged.
+// - anything else (cash paid straight to the driver): the platform still collects its
+//   cut, so the debit is forced through even if it pushes the balance negative (debt).
+async function deductCommission(taxiId, orderId, totalPrice, paymentType) {
+    const taxi = await Taxi.findByPk(taxiId, { raw: true });
+    if (!taxi?.user_id || !taxi?.city_id) return;
+
+    const pricing = await CityPricing.findOne({ where: { city_id: taxi.city_id }, raw: true });
+    const commissionPercent = pricing ? Number(pricing.commission_percent) : 0;
+    if (!commissionPercent) return;
+
+    const commissionAmount = parseFloat((totalPrice * commissionPercent / 100).toFixed(2));
+    if (!commissionAmount) return;
+
+    await BalanceModel.removeBalanceInUSer({
+        userId: taxi.user_id,
+        price: commissionAmount,
+        sendedUserId: taxi.user_id,
+        sendedName: 'Sistema',
+        confirmedName: `Komissiýa — sargyt #${orderId}`,
+    }, { allowNegative: paymentType !== 'balance' });
 }
 
 // ─── HANDLERS ─────────────────────────────────────────────────────────────────
@@ -58,6 +88,9 @@ async function handleOrderCreate(io, socket, data) {
         paymentType: paymentType ?? 'cash',
         basePrice:   basePrice   ?? 0,
     });
+
+    // notify admin panel — separate room, full order row (server/socket/sosSocket.js: admin:register)
+    io.to('admin:orders').emit('order:new', order);
 
     console.log(`📦 Order ${order.id} created | user ${userId} | city ${cityId}`);
 }
@@ -150,6 +183,9 @@ async function handleOrderComplete(io, socket, data) {
     const totalPrice = parseFloat((Number(order.base_price) + Number(order.waiting_price)).toFixed(2));
     const updated    = await OrderModel.updateOrderStatus(orderId, 'completed', { totalPrice });
 
+    deductCommission(taxiId, orderId, totalPrice, order.payment_type)
+        .catch((e) => console.error(`commission deduction failed for order ${orderId}:`, e));
+
     await redisClient.hSet(`taxi:${taxiId}:meta`, { status: 'free' });
     socket.data.activeOrderId = null;
 
@@ -230,6 +266,24 @@ async function handleOrderTrack(io, socket, data) {
     });
 }
 
+// Client/driver sends a chat message tied to an order → persist + broadcast to the order room.
+// Order chat is driver↔client only — admin talks to the user via the separate support chat
+// (server/socket/supportSocket.js), never inside an order's thread.
+async function handleChatSend(io, socket, data) {
+    const { orderId, senderType, senderId, body } = data;
+
+    if (!orderId || !senderType || !body) {
+        return err(socket, 'orderId, senderType, body are required');
+    }
+    if (!['client', 'driver'].includes(senderType)) {
+        return err(socket, "senderType must be 'client' or 'driver'");
+    }
+
+    const message = await MessageModel.addMessage({ orderId, senderType, senderId: senderId ?? null, body });
+
+    io.to(`order:${orderId}`).emit('chat:message', message);
+}
+
 // Passenger/observer joins order room to receive live updates
 function handleOrderWatch(socket, data) {
     const { orderId } = data;
@@ -256,6 +310,7 @@ function initOrderSocket(io, socket) {
     wrap('order:complete', handleOrderComplete);
     wrap('order:cancel',   handleOrderCancel);
     wrap('order:track',    handleOrderTrack);
+    wrap('chat:send',      handleChatSend);
 
     socket.on('order:watch', (data) => handleOrderWatch(socket, data));
 }

@@ -1,6 +1,15 @@
 const OrderService = require('../services/orderService');
 
 class OrderController {
+    static async getById(req, res, next) {
+        try {
+            const { id } = req.params;
+            const order = await OrderService.getById(id);
+            if (!order) return res.status(404).json({ status: false, message: 'Order not found' });
+            return res.status(200).json({ status: true, order });
+        } catch (e) { next(e); }
+    }
+
     static async list(req, res, next) {
         try {
             const { status, cityId, limit, page } = req.query;

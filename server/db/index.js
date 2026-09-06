@@ -23,6 +23,7 @@ db.DeviceToken = require('./models/DeviceToken')(sequelize, DataTypes);
 db.Taxi = require('./models/Taxi')(sequelize, DataTypes);
 db.TaxiOrder = require('./models/TaxiOrder')(sequelize, DataTypes);
 db.TaxiOrderLog = require('./models/TaxiOrderLog')(sequelize, DataTypes);
+db.OrderMessage = require('./models/OrderMessage')(sequelize, DataTypes);
 db.Balance = require('./models/Balance')(sequelize, DataTypes);
 db.BalanceTransaction = require('./models/BalanceTransaction')(sequelize, DataTypes);
 db.Payment = require('./models/Payment')(sequelize, DataTypes);
@@ -36,6 +37,8 @@ db.Address = require('./models/Address')(sequelize, DataTypes);
 db.AdminUser = require('../modules/admin/models/AdminUser')(sequelize, DataTypes);
 db.CityPricing = require('../modules/admin/models/CityPricing')(sequelize, DataTypes);
 db.DriverApplication = require('../modules/admin/models/DriverApplication')(sequelize, DataTypes);
+db.BalanceRequest = require('../modules/admin/models/BalanceRequest')(sequelize, DataTypes);
+db.BalanceRequestMessage = require('../modules/admin/models/BalanceRequestMessage')(sequelize, DataTypes);
 db.AdminSettings = require('../modules/admin/models/AdminSettings')(sequelize, DataTypes);
 db.AdminNotificationPref = require('../modules/admin/models/AdminNotificationPref')(sequelize, DataTypes);
 

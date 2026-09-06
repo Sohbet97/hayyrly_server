@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Download, Search, ChevronLeft, ChevronRight } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { StatusPill, Avatar } from '../design/atoms.jsx'
 import { AssignDriverMenu } from '../components/orders/AssignDriverMenu.jsx'
 import { useTZ } from '../design/tokens.js'
 import { useApi } from '../api/useApi.js'
 import { listOrders, assignDriver } from '../api/orders.js'
 import { listDrivers } from '../api/drivers.js'
+import { getSocket } from '../api/socket.js'
 import { useT } from '../i18n/useT.js'
 
 const PER = 20
@@ -14,6 +16,7 @@ const PER = 20
 export default function OrdersPage({ shell }) {
   const TZ = useTZ()
   const t = useT()
+  const navigate = useNavigate()
   const [tab,    setTab]    = useState('all')
   const [search, setSearch] = useState('')
   const [pg,     setPg]     = useState(1)
@@ -26,6 +29,14 @@ export default function OrdersPage({ shell }) {
   const driverOptions = (driversData?.data ?? []).map(d => ({
     id: d.id, name: `${d.first_name} ${d.last_name}`.trim(), online: !!d.is_active,
   }))
+
+  useEffect(() => {
+    const socket = getSocket()
+    const onOrderNew = () => reload()
+    socket.on('order:new', onOrderNew)
+    return () => socket.off('order:new', onOrderNew)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function assign(id, taxiId) {
     setAssigning(id)
@@ -84,22 +95,23 @@ export default function OrdersPage({ shell }) {
     URL.revokeObjectURL(url)
   }
 
+  usePageHeader({
+    title: t('orders.title'),
+    subtitle: `${t('orders.subtitlePrefix')} ${orders.length} ${t('common.ordersUnit')}`,
+    actions: (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button type="button" onClick={exportCsv}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+            border: `1px solid ${TZ.line}`, borderRadius: 8, background: TZ.surface,
+            fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body, cursor: 'pointer' }}>
+          <Download size={13} /> {t('orders.export')}
+        </button>
+      </div>
+    ),
+  })
+
   return (
-    <AdminShell {...shell}
-      active="orders"
-      title={t('orders.title')}
-      subtitle={`${t('orders.subtitlePrefix')} ${orders.length} ${t('common.ordersUnit')}`}
-      actions={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button type="button" onClick={exportCsv}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-              border: `1px solid ${TZ.line}`, borderRadius: 8, background: TZ.surface,
-              fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body, cursor: 'pointer' }}>
-            <Download size={13} /> {t('orders.export')}
-          </button>
-        </div>
-      }
-    >
+    <>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%',
         padding: '14px 16px', gap: 12, overflow: 'hidden' }}>
 
@@ -163,8 +175,8 @@ export default function OrdersPage({ shell }) {
                 {paged.map(o => {
                   const driverName = o.driver_id ? `${o.driver_first_name ?? ''} ${o.driver_last_name ?? ''}`.trim() : null
                   return (
-                    <tr key={o.id}
-                      style={{ borderBottom: `1px solid ${TZ.lineSoft}`, transition: 'background 0.1s' }}>
+                    <tr key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
+                      style={{ borderBottom: `1px solid ${TZ.lineSoft}`, transition: 'background 0.1s', cursor: 'pointer' }}>
 
                       <td style={{ padding: '13px 16px' }}>
                         <div style={{ fontFamily: TZ.mono, fontSize: 12.5, fontWeight: 700, color: TZ.ink }}>#{o.id}</div>
@@ -255,7 +267,7 @@ export default function OrdersPage({ shell }) {
           </div>
         </div>
       </div>
-    </AdminShell>
+    </>
   )
 }
 

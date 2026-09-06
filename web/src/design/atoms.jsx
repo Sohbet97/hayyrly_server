@@ -40,6 +40,12 @@ const PILL_CLS = {
   offline:   { wrap: 'bg-surface-3 text-faint',       dot: 'bg-faint'   },
   paid:      { wrap: 'bg-green-soft text-green',      dot: 'bg-green'   },
   refunded:  { wrap: 'bg-red-soft text-red',          dot: 'bg-red'     },
+  approved:  { wrap: 'bg-green-soft text-green',      dot: 'bg-green'   },
+  confirmed: { wrap: 'bg-green-soft text-green',      dot: 'bg-green'   },
+  rejected:  { wrap: 'bg-red-soft text-red',          dot: 'bg-red'     },
+  open:          { wrap: 'bg-red-soft text-red',      dot: 'bg-red'     },
+  acknowledged:  { wrap: 'bg-amber-soft text-amber',  dot: 'bg-amber'   },
+  resolved:      { wrap: 'bg-green-soft text-green',  dot: 'bg-green'   },
 }
 
 export function StatusPill({ status, size = 'md' }) {
@@ -83,7 +89,13 @@ export function Segmented({ options, active = 0, onChange }) {
 }
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
-export function Avatar({ name = '', size = 32, color = '#0E2A4D' }) {
+export function Avatar({ name = '', size = 32, color = '#0E2A4D', src = null }) {
+  if (src) {
+    return (
+      <img src={src} alt={name} style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0,
+        objectFit: 'cover' }} />
+    )
+  }
   const initials = name.split(' ').map(s => s[0] || '').join('').slice(0, 2).toUpperCase()
   return (
     <div style={{ width: size, height: size, background: color, borderRadius: '50%', flexShrink: 0,

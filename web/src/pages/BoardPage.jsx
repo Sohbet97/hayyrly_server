@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { MapPin, ArrowRight } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { Avatar } from '../design/atoms.jsx'
 import { AssignDriverMenu } from '../components/orders/AssignDriverMenu.jsx'
 import { useTZ, STATUS } from '../design/tokens.js'
@@ -22,6 +23,7 @@ export default function BoardPage({ shell }) {
   const lang = useSelector(state => state.ui.lang)
   const TZ = useTZ()
   const t = useT()
+  const navigate = useNavigate()
 
   const COLS = [
     { id: 'created',   dot: TZ.muted,  accent: TZ.muted,  soft: TZ.surface3  },
@@ -77,12 +79,10 @@ export default function BoardPage({ shell }) {
     }
   }
 
+  usePageHeader({ title: t('board.title'), subtitle: t('board.subtitle') })
+
   return (
-    <AdminShell {...shell}
-      active="board"
-      title={t('board.title')}
-      subtitle={t('board.subtitle')}
-    >
+    <>
       {error && (
         <div style={{ padding: 16, fontFamily: TZ.sans, fontSize: 13, color: TZ.red }}>{error.message}</div>
       )}
@@ -133,12 +133,13 @@ export default function BoardPage({ shell }) {
                       draggable={canDrag}
                       onDragStart={e => { setDragId(o.id); e.dataTransfer.effectAllowed = 'move' }}
                       onDragEnd={() => { setDragId(null); setOverCol(null) }}
+                      onClick={() => navigate(`/orders/${o.id}`)}
                       style={{
                       background: TZ.surface, border: `1px solid ${TZ.line}`, borderRadius: 10,
                       padding: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                       display: 'flex', flexDirection: 'column', gap: 9,
                       opacity: pending === o.id ? 0.6 : (dragId === o.id ? 0.4 : 1),
-                      cursor: canDrag ? 'grab' : 'default',
+                      cursor: canDrag ? 'grab' : 'pointer',
                     }}>
                       {/* Header row */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -188,7 +189,8 @@ export default function BoardPage({ shell }) {
                         <div style={{ display: 'flex', gap: 5, paddingTop: 8,
                           borderTop: `1px solid ${TZ.lineSoft}` }}>
                           {nexts.map(next => (
-                            <TransitionBtn key={next} disabled={pending === o.id} onClick={() => move(o.id, next)}>
+                            <TransitionBtn key={next} disabled={pending === o.id}
+                              onClick={e => { e.stopPropagation(); move(o.id, next) }}>
                               <ArrowRight size={10} /> {STATUS[next]?.[lang] ?? STATUS[next]?.tk}
                             </TransitionBtn>
                           ))}
@@ -209,7 +211,7 @@ export default function BoardPage({ shell }) {
           )
         })}
       </div>
-    </AdminShell>
+    </>
   )
 }
 

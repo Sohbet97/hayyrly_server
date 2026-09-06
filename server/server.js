@@ -13,6 +13,8 @@ const redisClient = require('./service/redisClient');
 const { initTaxiSocket, flushAndClearDebounce } = require('./socket/taxiSocket');
 const { initOrderSocket } = require('./socket/orderSocket');
 const { initSmsSocket }   = require('./socket/smsSocket');
+const { initSosSocket }   = require('./socket/sosSocket');
+const { initSupportSocket } = require('./socket/supportSocket');
 const smsService          = require('./service/smsService');
 const swaggerUi           = require('swagger-ui-express');
 const openapiSpec         = require('./docs/openapi');
@@ -22,6 +24,7 @@ const requestLogger       = require('./middleware/requestLogger');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
+app.set('io', io);
 
 app.use(helmet());
 app.use(express.json());
@@ -44,9 +47,12 @@ const routes = {
     balanceRouter: require('./routes/balanceRouter'),
     orderRouter: require('./routes/order/orderRouter'),
     mapRouter:   require('./routes/mapRouter'),
+    sosRouter:   require('./routes/sosRouter'),
+    supportRouter: require('./routes/supportRouter'),
     adminRouter: require('./modules/admin/routes'),
     publicPricingRouter: require('./modules/admin/routes/publicPricingRouter'),
     publicApplicationRouter: require('./modules/admin/routes/publicApplicationRouter'),
+    publicBalanceRequestRouter: require('./modules/admin/routes/publicBalanceRequestRouter'),
 };
 
 app.use('/api/users', routes.userRouter);
@@ -58,9 +64,12 @@ app.use('/api/services', routes.serviceRouter);
 app.use('/api/balance', routes.balanceRouter);
 app.use('/api/orders', routes.orderRouter);
 app.use('/api/map', routes.mapRouter);
+app.use('/api/sos', routes.sosRouter);
+app.use('/api/support', routes.supportRouter);
 app.use('/api/admin', routes.adminRouter);
 app.use('/api/pricing', routes.publicPricingRouter);
 app.use('/api/driver-applications', routes.publicApplicationRouter);
+app.use('/api/balance-requests', routes.publicBalanceRequestRouter);
 
 // register FCM token for OTP delivery
 app.post('/api/otp/device', async (req, res) => {
@@ -116,6 +125,19 @@ app.get('/search', async (req, res) => {
     }
 });
 
+// ─── Error handler ───────────────────────────────────────────
+app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+
+    logger.error(`${req.method} ${req.originalUrl} failed`, { error: err.message, stack: err.stack });
+
+    if (err.name === 'MulterError') {
+        return res.status(400).json({ status: false, message: err.message });
+    }
+
+    return res.status(err.status || 500).json({ status: false, message: 'Internal Server Error' });
+});
+
 // ─── Socket.IO ───────────────────────────────────────────────
 const onlinePhones = new Set();
 smsService.init(io);
@@ -124,6 +146,8 @@ io.on('connection', (socket) => {
     initTaxiSocket(io, socket);
     initOrderSocket(io, socket);
     initSmsSocket(io, socket);
+    initSosSocket(io, socket);
+    initSupportSocket(io, socket);
 
     socket.on('register', async ({ phone, token }) => {
         const existing = await io.in(phone).fetchSockets();

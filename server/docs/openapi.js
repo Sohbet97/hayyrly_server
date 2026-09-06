@@ -246,6 +246,102 @@ const notifPrefsSchema = {
     },
 };
 
+const reviewSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        order_id: { type: 'integer' },
+        user_id: { type: 'integer' },
+        taxi_id: { type: 'integer' },
+        rating: { type: 'integer', minimum: 1, maximum: 5 },
+        comment: { type: 'string', nullable: true },
+        created_at: { type: 'string', format: 'date-time' },
+    },
+};
+
+const orderMessageSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        order_id: { type: 'integer' },
+        sender_type: { type: 'string', enum: ['client', 'driver'] },
+        sender_id: { type: 'integer', nullable: true },
+        body: { type: 'string' },
+        created_at: { type: 'string', format: 'date-time' },
+    },
+};
+
+const sosAlertSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        order_id: { type: 'integer', nullable: true },
+        user_id: { type: 'integer', nullable: true },
+        taxi_id: { type: 'integer', nullable: true },
+        phone: { type: 'string' },
+        note: { type: 'string', nullable: true },
+        status: { type: 'string', enum: ['open', 'acknowledged', 'resolved'] },
+        created_at: { type: 'string', format: 'date-time' },
+        lat: { type: 'number' },
+        lng: { type: 'number' },
+    },
+};
+
+const balanceRequestSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        user_id: { type: 'integer' },
+        status: { type: 'string', enum: ['pending', 'confirmed', 'rejected'] },
+        amount: { type: 'number', nullable: true },
+        operator_id: { type: 'integer', nullable: true },
+        reject_reason: { type: 'string', nullable: true },
+        created_at: { type: 'string', format: 'date-time' },
+        updated_at: { type: 'string', format: 'date-time' },
+        user: { type: 'object', nullable: true, properties: { full_name: { type: 'string' }, phone: { type: 'string' } } },
+    },
+};
+
+const balanceRequestMessageSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        request_id: { type: 'integer' },
+        sender_type: { type: 'string', enum: ['user', 'taxi', 'admin'] },
+        sender_id: { type: 'integer' },
+        message: { type: 'string', nullable: true },
+        photo_url: { type: 'string', nullable: true },
+        is_read: { type: 'boolean' },
+        created_at: { type: 'string', format: 'date-time' },
+    },
+};
+
+const supportMessageSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        user_id: { type: 'integer' },
+        sender_type: { type: 'string', enum: ['user', 'admin'] },
+        sender_id: { type: 'integer' },
+        message: { type: 'string', nullable: true },
+        photo_url: { type: 'string', nullable: true },
+        is_read: { type: 'boolean' },
+        created_at: { type: 'string', format: 'date-time' },
+    },
+};
+
+const supportThreadSchema = {
+    type: 'object',
+    properties: {
+        user_id: { type: 'integer' },
+        full_name: { type: 'string', nullable: true },
+        phone: { type: 'string', nullable: true },
+        last_message: { type: 'string', nullable: true },
+        last_message_at: { type: 'string', format: 'date-time', nullable: true },
+        unread_count: { type: 'integer' },
+    },
+};
+
 const paths = {
     // ── Users ──────────────────────────────────────────────────────────────
     '/api/users/createNew': {
@@ -262,9 +358,9 @@ const paths = {
             responses: responses({ 200: okEnvelope({ user: { type: 'object' } }), 404: errorEnvelope, 500: errorEnvelope }),
         },
         put: {
-            tags: ['Users'], summary: 'Update user profile (multipart, optional avatar)',
+            tags: ['Users'], summary: 'Update user profile (multipart, optional avatar; also used to change the selected city)',
             parameters: [param('id', { where: 'path', type: 'integer', required: true })],
-            requestBody: { required: true, content: { 'multipart/form-data': { schema: { type: 'object', properties: { fullName: { type: 'string' }, avatar: { type: 'string', format: 'binary' } } } } } },
+            requestBody: { required: true, content: { 'multipart/form-data': { schema: { type: 'object', properties: { fullName: { type: 'string' }, cityId: { type: 'integer' }, avatar: { type: 'string', format: 'binary' } } } } } },
             responses: responses({ 200: okEnvelope({ result: { type: 'object' } }), 500: errorEnvelope }),
         },
         delete: {
@@ -471,6 +567,27 @@ const paths = {
             parameters: [param('id', { where: 'path', type: 'integer', required: true })],
             responses: responses({ 200: okEnvelope({ result: { type: 'object' } }), 500: errorEnvelope }),
         },
+        put: {
+            tags: ['Taksi'], summary: "Edit the driver's own profile (multipart, optional avatar/car image)",
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            requestBody: {
+                required: true,
+                content: {
+                    'multipart/form-data': {
+                        schema: {
+                            type: 'object',
+                            properties: {
+                                firstName: { type: 'string' }, lastName: { type: 'string' }, phone: { type: 'string' },
+                                birthday: { type: 'string', format: 'date' }, cityId: { type: 'integer' },
+                                autoNumber: { type: 'string' }, markaId: { type: 'integer' }, modelId: { type: 'integer' },
+                                autoYear: { type: 'integer' }, avatar: { type: 'string', format: 'binary' }, carImage: { type: 'string', format: 'binary' },
+                            },
+                        },
+                    },
+                },
+            },
+            responses: responses({ 200: okEnvelope({ result: { type: 'object' } }), 404: errorEnvelope, 500: errorEnvelope }),
+        },
         delete: {
             tags: ['Taksi'], summary: 'Delete taxi',
             parameters: [param('id', { where: 'path', type: 'integer', required: true })],
@@ -600,6 +717,41 @@ const paths = {
             responses: responses({ 200: paginated(orderSchema), 400: errorEnvelope }),
         },
     },
+    '/api/orders/{id}/messages': {
+        get: {
+            tags: ['Orders'], summary: 'Order chat history (driver ↔ client only)',
+            parameters: [param('id', { where: 'path', type: 'integer', required: true }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: okEnvelope({ result: { type: 'array', items: orderMessageSchema } }), 400: errorEnvelope }),
+        },
+        post: {
+            tags: ['Orders'], summary: 'Send an order chat message (also broadcast via socket chat:message)',
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', required: ['senderType', 'body'], properties: { senderType: { type: 'string', enum: ['client', 'driver'] }, senderId: { type: 'integer', nullable: true }, body: { type: 'string' } } }),
+            responses: responses({ 201: okEnvelope({ result: orderMessageSchema }), 400: errorEnvelope }),
+        },
+    },
+    '/api/orders/{id}/reviews': {
+        post: {
+            tags: ['Orders'], summary: 'Rate a completed order (one review per order)',
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', required: ['rating'], properties: { rating: { type: 'integer', minimum: 1, maximum: 5 }, comment: { type: 'string', nullable: true } } }),
+            responses: responses({ 201: okEnvelope({ result: reviewSchema }), 400: errorEnvelope, 404: errorEnvelope, 409: errorEnvelope }),
+        },
+    },
+    '/api/orders/taxi/{taxiId}/reviews': {
+        get: {
+            tags: ['Orders'], summary: "List a driver's reviews",
+            parameters: [param('taxiId', { where: 'path', type: 'integer', required: true }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: paginated(reviewSchema), 400: errorEnvelope }),
+        },
+    },
+    '/api/orders/user/{userId}/reviews': {
+        get: {
+            tags: ['Orders'], summary: "List a user's submitted reviews",
+            parameters: [param('userId', { where: 'path', type: 'integer', required: true }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: paginated(reviewSchema), 400: errorEnvelope }),
+        },
+    },
 
     // ── Map ────────────────────────────────────────────────────────────────
     '/api/map/location/name': {
@@ -607,6 +759,67 @@ const paths = {
             tags: ['Map'], summary: 'Reverse-geocode a point to the nearest named place',
             parameters: [param('lat', { required: true, type: 'number' }), param('lng', { required: true, type: 'number' }), param('radius', { type: 'number', description: 'meters, default 50, max 500' })],
             responses: responses({ 200: okEnvelope({ found: { type: 'boolean' }, name: { type: 'string' }, fclass: { type: 'string' }, distance_m: { type: 'number' } }), 400: errorEnvelope, 404: okEnvelope({ found: { type: 'boolean', example: false } }) }),
+        },
+    },
+
+    // ── SOS ────────────────────────────────────────────────────────────────
+    '/api/sos': {
+        post: {
+            tags: ['SOS'], summary: 'Trigger an SOS alert (REST fallback; also available via socket sos:trigger). Persists and notifies admins in the admin:sos room.',
+            requestBody: jsonBody({
+                type: 'object', required: ['phone', 'lat', 'lng'],
+                properties: {
+                    orderId: { type: 'integer', nullable: true }, userId: { type: 'integer', nullable: true }, taxiId: { type: 'integer', nullable: true },
+                    phone: { type: 'string' }, note: { type: 'string', nullable: true, description: 'free text / category, e.g. emergency, fire, police' },
+                    lat: { type: 'number' }, lng: { type: 'number' },
+                },
+            }),
+            responses: responses({ 201: okEnvelope({ result: sosAlertSchema }), 400: errorEnvelope, 500: errorEnvelope }),
+        },
+    },
+
+    // ── Balance requests (top-up approval workflow) ──────────────────────────
+    '/api/balance-requests': {
+        post: {
+            tags: ['Balance Requests'], summary: 'Submit a balance top-up request (optionally with an opening chat message/photo)',
+            requestBody: jsonBody({ type: 'object', required: ['userId'], properties: { userId: { type: 'integer' }, amount: { type: 'number', nullable: true }, message: { type: 'string', nullable: true }, photoUrl: { type: 'string', nullable: true } } }),
+            responses: responses({ 201: okEnvelope({ result: balanceRequestSchema }), 400: errorEnvelope }),
+        },
+    },
+    '/api/balance-requests/user/{userId}': {
+        get: {
+            tags: ['Balance Requests'], summary: "List a user's own balance top-up requests",
+            parameters: [param('userId', { where: 'path', type: 'integer', required: true }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: paginated(balanceRequestSchema), 400: errorEnvelope }),
+        },
+    },
+    '/api/balance-requests/{id}/messages': {
+        get: {
+            tags: ['Balance Requests'], summary: 'Chat thread for a balance request',
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            responses: responses({ 200: okEnvelope({ result: { type: 'array', items: balanceRequestMessageSchema } }), 404: errorEnvelope }),
+        },
+        post: {
+            tags: ['Balance Requests'], summary: 'Send a chat message on a balance request (client/taxi side)',
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', required: ['senderType', 'senderId'], properties: { senderType: { type: 'string', enum: ['user', 'taxi'] }, senderId: { type: 'integer' }, message: { type: 'string', nullable: true }, photoUrl: { type: 'string', nullable: true } } }),
+            responses: responses({ 201: okEnvelope({ result: balanceRequestMessageSchema }), 400: errorEnvelope, 404: errorEnvelope }),
+        },
+    },
+
+    // ── Support chat (user ↔ admin) ──────────────────────────────────────────
+    '/api/support/messages': {
+        post: {
+            tags: ['Support'], summary: 'Send a message to admin support (one continuous thread per user)',
+            requestBody: jsonBody({ type: 'object', required: ['userId'], properties: { userId: { type: 'integer' }, message: { type: 'string', nullable: true }, photoUrl: { type: 'string', nullable: true } } }),
+            responses: responses({ 201: okEnvelope({ result: supportMessageSchema }), 400: errorEnvelope, 500: errorEnvelope }),
+        },
+    },
+    '/api/support/user/{userId}/messages': {
+        get: {
+            tags: ['Support'], summary: "A user's support chat history with admin",
+            parameters: [param('userId', { where: 'path', type: 'integer', required: true }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: okEnvelope({ result: { type: 'array', items: supportMessageSchema } }), 400: errorEnvelope }),
         },
     },
 
@@ -750,6 +963,13 @@ const paths = {
             responses: responses({ 200: paginated(adminOrderSchema), 401: errorEnvelope }),
         },
     },
+    '/api/admin/orders/{id}/messages': {
+        get: {
+            tags: ['Admin · Orders'], summary: 'Read-only view of an order chat (order chat is driver ↔ client only; admin cannot post)', security: bearerAuth,
+            parameters: [param('id', { where: 'path', type: 'integer', required: true }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: okEnvelope({ result: { type: 'array', items: orderMessageSchema } }), 401: errorEnvelope }),
+        },
+    },
     '/api/admin/reports/orders': {
         get: {
             tags: ['Admin · Reports'], summary: 'Order/revenue summary + top drivers', security: bearerAuth,
@@ -882,6 +1102,87 @@ const paths = {
         },
     },
 
+    // ── Admin: Support chat ───────────────────────────────────────────────────
+    '/api/admin/support': {
+        get: {
+            tags: ['Admin · Support'], summary: 'List support threads (one row per user, with last message + unread count)', security: bearerAuth,
+            parameters: [param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: paginated(supportThreadSchema), 401: errorEnvelope }),
+        },
+    },
+    '/api/admin/support/{userId}/messages': {
+        get: {
+            tags: ['Admin · Support'], summary: "Get a user's support thread (marks the user's messages as read)", security: bearerAuth,
+            parameters: [param('userId', { where: 'path', type: 'integer', required: true }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: okEnvelope({ result: { type: 'array', items: supportMessageSchema } }), 401: errorEnvelope }),
+        },
+        post: {
+            tags: ['Admin · Support'], summary: 'Reply in a support thread as the authenticated operator', security: bearerAuth,
+            parameters: [param('userId', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', properties: { message: { type: 'string', nullable: true }, photoUrl: { type: 'string', nullable: true } } }),
+            responses: responses({ 201: okEnvelope({ result: supportMessageSchema }), 401: errorEnvelope }),
+        },
+    },
+
+    // ── Admin: SOS ────────────────────────────────────────────────────────────
+    '/api/admin/sos': {
+        get: {
+            tags: ['Admin · SOS'], summary: 'List SOS alerts', security: bearerAuth,
+            parameters: [param('status', { description: 'open | acknowledged | resolved' }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: paginated(sosAlertSchema), 401: errorEnvelope }),
+        },
+    },
+    '/api/admin/sos/{id}/status': {
+        put: {
+            tags: ['Admin · SOS'], summary: 'Update an SOS alert status', security: bearerAuth,
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['open', 'acknowledged', 'resolved'] } } }),
+            responses: responses({ 200: okEnvelope({ result: sosAlertSchema }), 400: errorEnvelope, 401: errorEnvelope, 404: errorEnvelope }),
+        },
+    },
+
+    // ── Admin: Balance requests ────────────────────────────────────────────────
+    '/api/admin/balance-requests': {
+        get: {
+            tags: ['Admin · Balance Requests'], summary: 'List balance top-up requests (with requesting user info)', security: bearerAuth,
+            parameters: [param('status', { description: 'pending | confirmed | rejected' }), param('limit', { type: 'integer' }), param('page', { type: 'integer' })],
+            responses: responses({ 200: paginated(balanceRequestSchema), 401: errorEnvelope }),
+        },
+    },
+    '/api/admin/balance-requests/{id}': {
+        get: {
+            tags: ['Admin · Balance Requests'], summary: 'Get a balance request with its chat thread', security: bearerAuth,
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            responses: responses({
+                200: okEnvelope({ result: { allOf: [balanceRequestSchema, { type: 'object', properties: { messages: { type: 'array', items: balanceRequestMessageSchema } } }] } }),
+                401: errorEnvelope, 404: errorEnvelope,
+            }),
+        },
+    },
+    '/api/admin/balance-requests/{id}/confirm': {
+        put: {
+            tags: ['Admin · Balance Requests'], summary: 'Confirm a request — credits the amount to the user balance', security: bearerAuth,
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            responses: responses({ 200: okEnvelope({ result: balanceRequestSchema }), 400: errorEnvelope, 401: errorEnvelope, 404: errorEnvelope, 409: errorEnvelope }),
+        },
+    },
+    '/api/admin/balance-requests/{id}/reject': {
+        put: {
+            tags: ['Admin · Balance Requests'], summary: 'Reject a request with an optional reason', security: bearerAuth,
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', properties: { reason: { type: 'string', nullable: true } } }),
+            responses: responses({ 200: okEnvelope({ result: balanceRequestSchema }), 401: errorEnvelope, 404: errorEnvelope, 409: errorEnvelope }),
+        },
+    },
+    '/api/admin/balance-requests/{id}/messages': {
+        post: {
+            tags: ['Admin · Balance Requests'], summary: 'Reply in a balance request chat as the authenticated operator', security: bearerAuth,
+            parameters: [param('id', { where: 'path', type: 'integer', required: true })],
+            requestBody: jsonBody({ type: 'object', properties: { message: { type: 'string', nullable: true }, photoUrl: { type: 'string', nullable: true } } }),
+            responses: responses({ 201: okEnvelope({ result: balanceRequestMessageSchema }), 401: errorEnvelope, 404: errorEnvelope }),
+        },
+    },
+
     // ── Admin: Driver applications ───────────────────────────────────────────
     '/api/admin/driver-applications': {
         get: {
@@ -974,12 +1275,14 @@ module.exports = {
     tags: [
         { name: 'Users' }, { name: 'Auth' }, { name: 'Cities' }, { name: 'Addresses' },
         { name: 'Cars' }, { name: 'Services' }, { name: 'Taksi' }, { name: 'Balance' },
-        { name: 'Orders' }, { name: 'Map' }, { name: 'Misc' }, { name: 'Public' },
+        { name: 'Orders' }, { name: 'Map' }, { name: 'SOS' }, { name: 'Balance Requests' },
+        { name: 'Support' }, { name: 'Misc' }, { name: 'Public' },
         { name: 'Admin · Auth' }, { name: 'Admin · Drivers' }, { name: 'Admin · Clients' },
         { name: 'Admin · Cities' }, { name: 'Admin · Orders' },
         { name: 'Admin · Reports' }, { name: 'Admin · Transactions' }, { name: 'Admin · Payments' },
         { name: 'Admin · Driver Applications' }, { name: 'Admin · Pricing' },
         { name: 'Admin · Team' }, { name: 'Admin · Settings' },
+        { name: 'Admin · Support' }, { name: 'Admin · SOS' }, { name: 'Admin · Balance Requests' },
     ],
     paths,
 };

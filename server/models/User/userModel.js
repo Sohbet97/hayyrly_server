@@ -20,11 +20,17 @@ async function updateuserData(userId, newData) {
     try {
         const {
             fullName,
-            avatar
+            avatar,
+            cityId
         } = newData;
 
+        const fields = { updated_at: sequelize.literal('NOW()') };
+        if (fullName !== undefined) fields.full_name = fullName;
+        if (avatar !== undefined)   fields.avatar = avatar;
+        if (cityId !== undefined)   fields.city_id = cityId;
+
         const [, rows] = await User.update(
-            { full_name: fullName, avatar, updated_at: sequelize.literal('NOW()') },
+            fields,
             { where: { id: userId }, returning: true }
         );
         return rows[0]?.get({ plain: true }) || null;

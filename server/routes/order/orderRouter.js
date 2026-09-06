@@ -28,4 +28,19 @@ router.get('/taxi/:taxiId', controller.getOrdersByTaxi);
 // GET    /api/orders/city/:cityId/active    — şäherdäki açyk sargytlar ?limit=&page=
 router.get('/city/:cityId/active', controller.getActiveOrdersInCity);
 
+// GET    /api/orders/:id/messages           — sargyt üçin çat taryhy   ?limit=&page=
+router.get('/:id/messages', controller.getOrderMessages);
+
+// POST   /api/orders/:id/messages           — çat habary ibermek
+router.post('/:id/messages', controller.postOrderMessage);
+
+// POST   /api/orders/:id/reviews            — sargyt üçin baha bermek
+router.post('/:id/reviews', controller.createReview);
+
+// GET    /api/orders/taxi/:taxiId/reviews   — sürüjüniň baha-teswirleri ?limit=&page=
+router.get('/taxi/:taxiId/reviews', controller.getReviewsByTaxi);
+
+// GET    /api/orders/user/:userId/reviews   — ulanyjynyň baha-teswirleri ?limit=&page=
+router.get('/user/:userId/reviews', controller.getReviewsByUser);
+
 module.exports = router;

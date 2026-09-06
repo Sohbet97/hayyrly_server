@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { Truck, Globe, Banknote, Users, Bell, Check, Plus, MoreHorizontal, Key, Trash2, X } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { Modal } from '../components/common/Modal.jsx'
 import { useTZ } from '../design/tokens.js'
 import { useApi } from '../api/useApi.js'
 import { listPricing, updatePricing } from '../api/pricing.js'
-import { createCity } from '../api/cities.js'
+import { createCity, deleteCity } from '../api/cities.js'
 import { listTeam, createTeamMember, updateTeamMember, removeTeamMember } from '../api/team.js'
 import { getSettings, updateSettings, getNotifPrefs, updateNotifPrefs } from '../api/settings.js'
 import { useT } from '../i18n/useT.js'
@@ -253,7 +253,7 @@ function SecLocale({ t, settings, settingsLoading, settingsError, reloadSettings
   )
 }
 
-const DEFAULT_PRICING_FORM = { base_price: 10, price_per_km: 2.5, free_wait_min: 3, wait_price_min: 0.5 }
+const DEFAULT_PRICING_FORM = { base_price: 10, price_per_km: 2.5, free_wait_min: 3, wait_price_min: 0.5, commission_percent: 15 }
 
 function SecPricing({ t }) {
   const TZ = useTZ()
@@ -268,6 +268,7 @@ function SecPricing({ t }) {
   const [adding,     setAdding]     = useState(false)
   const [regionForm,  setRegionForm] = useState({ name_tm: '', name_ru: '', name_en: '' })
   const [regionSaving, setRegionSaving] = useState(false)
+  const [removing, setRemoving] = useState(null)
 
   function startEdit(c) {
     setEditing(c.id)
@@ -276,6 +277,7 @@ function SecPricing({ t }) {
       price_per_km: Number(c.pricing.price_per_km),
       free_wait_min: Number(c.pricing.free_wait_min),
       wait_price_min: Number(c.pricing.wait_price_min),
+      commission_percent: Number(c.pricing.commission_percent),
     } : { ...DEFAULT_PRICING_FORM })
   }
 
@@ -309,11 +311,25 @@ function SecPricing({ t }) {
     }
   }
 
+  async function removeRegion(c) {
+    if (!confirm(`${c.name_tm} ${t('settings.confirmRemoveRegion')}`)) return
+    setRemoving(c.id)
+    try {
+      await deleteCity(c.id)
+      reload()
+    } catch (err) {
+      alert(err.message || t('settings.removeRegionError'))
+    } finally {
+      setRemoving(null)
+    }
+  }
+
   const FIELDS = [
     { k: 'base_price',     l: t('settings.fieldBasePrice'), unit: 'TMT' },
     { k: 'price_per_km',   l: t('settings.fieldPerKm'),     unit: 'TMT' },
     { k: 'free_wait_min',  l: t('settings.fieldFreeWait'),  unit: 'min' },
     { k: 'wait_price_min', l: t('settings.fieldWaitPrice'), unit: 'TMT' },
+    { k: 'commission_percent', l: t('settings.fieldCommission'), unit: '%' },
   ]
 
   if (loading) return <div style={{ fontFamily: TZ.sans, fontSize: 13, color: TZ.muted }}>{t('common.loading')}</div>
@@ -395,12 +411,20 @@ function SecPricing({ t }) {
                   </button>
                 </div>
               ) : (
-                <button onClick={() => startEdit(c)} type="button"
-                  style={{ padding: '5px 12px', borderRadius: 7, border: `1px solid ${TZ.line}`,
-                    background: TZ.surface, fontFamily: TZ.sans, fontSize: 12, fontWeight: 600,
-                    color: TZ.body, cursor: 'pointer' }}>
-                  {pricing ? t('settings.edit') : t('settings.setPricing')}
-                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => startEdit(c)} type="button"
+                    style={{ padding: '5px 12px', borderRadius: 7, border: `1px solid ${TZ.line}`,
+                      background: TZ.surface, fontFamily: TZ.sans, fontSize: 12, fontWeight: 600,
+                      color: TZ.body, cursor: 'pointer' }}>
+                    {pricing ? t('settings.edit') : t('settings.setPricing')}
+                  </button>
+                  <button onClick={() => removeRegion(c)} type="button" disabled={removing === c.id}
+                    style={{ padding: '5px 8px', borderRadius: 7, border: `1px solid ${TZ.line}`,
+                      background: TZ.surface, cursor: removing === c.id ? 'default' : 'pointer',
+                      color: TZ.red, opacity: removing === c.id ? 0.6 : 1 }}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               )}
             </div>
 
@@ -436,6 +460,7 @@ function SecPricing({ t }) {
                     { l: t('settings.fieldPerKm'),     v: `${perKm} TMT`     },
                     { l: t('settings.fieldFreeWait'),  v: `${Number(pricing.free_wait_min)} min`  },
                     { l: t('settings.fieldWaitPrice'), v: `${Number(pricing.wait_price_min)} TMT`},
+                    { l: t('settings.fieldCommission'), v: `${Number(pricing.commission_percent)}%`},
                   ].map((r, i, arr) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between',
                       alignItems: 'center', padding: '9px 0',
@@ -783,12 +808,10 @@ export default function SettingsPage({ shell }) {
 
   const sectionProps = { t, settings, settingsLoading, settingsError, reloadSettings }
 
+  usePageHeader({ title: t('settings.title'), subtitle: SECTIONS.find(s => s.id === active)?.label })
+
   return (
-    <AdminShell {...shell}
-      active="settings"
-      title={t('settings.title')}
-      subtitle={SECTIONS.find(s => s.id === active)?.label}
-    >
+    <>
       <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
         {/* Sub-nav */}
@@ -826,6 +849,6 @@ export default function SettingsPage({ shell }) {
           {active === 'notif'   && <SecNotif t={t} />}
         </div>
       </div>
-    </AdminShell>
+    </>
   )
 }

@@ -7,6 +7,7 @@ module.exports = (sequelize, DataTypes) => {
         price_per_km: { type: DataTypes.DECIMAL(10, 2), defaultValue: 2.5 },
         free_wait_min: { type: DataTypes.DECIMAL(5, 2), defaultValue: 3 },
         wait_price_min: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0.5 },
+        commission_percent: { type: DataTypes.DECIMAL(5, 2), defaultValue: 15 },
         updated_at: { type: DataTypes.DATE },
         updated_by: { type: DataTypes.INTEGER },
     }, {

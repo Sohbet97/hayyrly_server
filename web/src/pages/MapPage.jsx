@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { RefreshCw, MapPin, X } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import LiveMap, { fetchLayers } from '../components/map/LiveMap.jsx'
 import { StatusPill, Avatar } from '../design/atoms.jsx'
 import { AssignDriverMenu } from '../components/orders/AssignDriverMenu.jsx'
@@ -36,6 +37,13 @@ export default function MapPage({ shell }) {
   const [layer,   setLayer]   = useState('')
   const [positions, setPositions] = useState({}) // taxiId -> { lat, lng, status }
   const [assigning, setAssigning] = useState(null)
+
+  const [searchParams] = useSearchParams()
+  const focusLat = parseFloat(searchParams.get('lat'))
+  const focusLng = parseFloat(searchParams.get('lng'))
+  const focusPoint = Number.isFinite(focusLat) && Number.isFinite(focusLng)
+    ? { lat: focusLat, lng: focusLng }
+    : null
 
   const { data: driversData, reload: reloadDrivers } = useApi(() => listDrivers({ limit: 200 }), [])
   const { data: ordersData,  reload: reloadOrders  } = useApi(() => listOrders({ limit: 200 }), [])
@@ -143,20 +151,21 @@ export default function MapPage({ shell }) {
 
   function refresh() { reloadDrivers(); reloadOrders() }
 
+  usePageHeader({
+    title: t('map.title'),
+    subtitle: `${online} ${t('map.subtitleWaiting')} · ${active} ${t('map.subtitleOnWay')} · ${pending} ${t('map.subtitlePending')}`,
+    actions: (
+      <button type="button" onClick={refresh}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+          border: `1px solid ${TZ.line}`, borderRadius: 8, background: TZ.surface,
+          fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body, cursor: 'pointer' }}>
+        <RefreshCw size={13} /> {t('map.refresh')}
+      </button>
+    ),
+  })
+
   return (
-    <AdminShell {...shell}
-      active="map"
-      title={t('map.title')}
-      subtitle={`${online} ${t('map.subtitleWaiting')} · ${active} ${t('map.subtitleOnWay')} · ${pending} ${t('map.subtitlePending')}`}
-      actions={
-        <button type="button" onClick={refresh}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-            border: `1px solid ${TZ.line}`, borderRadius: 8, background: TZ.surface,
-            fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body, cursor: 'pointer' }}>
-          <RefreshCw size={13} /> {t('map.refresh')}
-        </button>
-      }
-    >
+    <>
       <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
         {/* ── Map ── */}
@@ -219,7 +228,7 @@ export default function MapPage({ shell }) {
             ))}
           </div>
 
-          <LiveMap debugLayer={layer} drivers={mapDrivers} orders={liveOrders} selectedOrder={fo} />
+          <LiveMap debugLayer={layer} drivers={mapDrivers} orders={liveOrders} selectedOrder={fo} focusPoint={focusPoint} />
         </div>
 
         {/* ── Right rail ── */}
@@ -347,6 +356,6 @@ export default function MapPage({ shell }) {
           </div>
         </div>
       </div>
-    </AdminShell>
+    </>
   )
 }

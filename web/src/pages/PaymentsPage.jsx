@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Search, ChevronLeft, ChevronRight, X, Undo2 } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { StatusPill } from '../design/atoms.jsx'
 import { useTZ } from '../design/tokens.js'
 import { useApi } from '../api/useApi.js'
@@ -76,12 +76,10 @@ export default function PaymentsPage({ shell }) {
     { id: 'balance', label: t('payments.typeBalance') },
   ]
 
+  usePageHeader({ title: t('payments.title'), subtitle: t('payments.subtitle') })
+
   return (
-    <AdminShell {...shell}
-      active="payments"
-      title={t('payments.title')}
-      subtitle={t('payments.subtitle')}
-    >
+    <>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%',
         padding: '14px 16px', gap: 12, overflow: 'hidden' }}>
 
@@ -377,7 +375,7 @@ export default function PaymentsPage({ shell }) {
           </form>
         </div>
       )}
-    </AdminShell>
+    </>
   )
 }
 

@@ -7,3 +7,7 @@ export function listCities() {
 export function createCity(payload) {
   return api.post('/cities', payload)
 }
+
+export function deleteCity(id) {
+  return api.delete(`/cities/${id}`)
+}

@@ -1,4 +1,6 @@
 const OrderModel = require('../../models/Order/orderModel');
+const ReviewModel = require('../../models/Review/reviewModel');
+const MessageModel = require('../../models/Message/messageModel');
 const { CityPricing, User } = require('../../db');
 
 const BASE_PRICE   = parseFloat(process.env.ORDER_BASE_PRICE)   || 10;
@@ -209,6 +211,121 @@ async function getOrderTrack(req, res) {
     }
 }
 
+async function createReview(req, res) {
+    try {
+        const orderId = parseInt(req.params.id, 10);
+        if (isNaN(orderId)) return res.status(400).json({ status: false, message: 'Invalid order id' });
+
+        const { rating, comment } = req.body;
+        const parsedRating = parseInt(rating, 10);
+        if (isNaN(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+            return res.status(400).json({ status: false, message: 'rating must be an integer between 1 and 5' });
+        }
+
+        const order = await OrderModel.getOrderById(orderId);
+        if (!order) return res.status(404).json({ status: false, message: 'Order not found' });
+        if (order.status !== 'completed' || !order.taxi_id) {
+            return res.status(409).json({ status: false, message: 'Only completed orders with an assigned taxi can be reviewed' });
+        }
+
+        const result = await ReviewModel.createReview({
+            orderId,
+            userId: order.user_id,
+            taxiId: order.taxi_id,
+            rating: parsedRating,
+            comment: comment ?? null,
+        });
+
+        return res.status(201).json({ status: true, result });
+    } catch (error) {
+        if (error.original?.code === '23505' || error.code === '23505') {
+            return res.status(409).json({ status: false, message: 'Order already reviewed' });
+        }
+        console.error('Error createReview:', error);
+        return res.status(500).json({ status: false, message: 'Internal Server Error' });
+    }
+}
+
+async function getReviewsByTaxi(req, res) {
+    try {
+        const taxiId = parseInt(req.params.taxiId, 10);
+        if (isNaN(taxiId)) return res.status(400).json({ status: false, message: 'Invalid taxiId' });
+
+        const { limit, page } = req.query;
+        const pagination = {
+            limit:  limit ? parseInt(limit, 10)  : 20,
+            offset: page  ? (parseInt(page, 10) - 1) * (parseInt(limit, 10) || 20) : 0,
+        };
+
+        const result = await ReviewModel.getReviewsByTaxi(taxiId, pagination);
+        return res.status(200).json({ status: true, ...result });
+    } catch (error) {
+        console.error('Error getReviewsByTaxi:', error);
+        return res.status(500).json({ status: false, message: 'Internal Server Error' });
+    }
+}
+
+async function getReviewsByUser(req, res) {
+    try {
+        const userId = parseInt(req.params.userId, 10);
+        if (isNaN(userId)) return res.status(400).json({ status: false, message: 'Invalid userId' });
+
+        const { limit, page } = req.query;
+        const pagination = {
+            limit:  limit ? parseInt(limit, 10)  : 20,
+            offset: page  ? (parseInt(page, 10) - 1) * (parseInt(limit, 10) || 20) : 0,
+        };
+
+        const result = await ReviewModel.getReviewsByUser(userId, pagination);
+        return res.status(200).json({ status: true, ...result });
+    } catch (error) {
+        console.error('Error getReviewsByUser:', error);
+        return res.status(500).json({ status: false, message: 'Internal Server Error' });
+    }
+}
+
+async function getOrderMessages(req, res) {
+    try {
+        const orderId = parseInt(req.params.id, 10);
+        if (isNaN(orderId)) return res.status(400).json({ status: false, message: 'Invalid order id' });
+
+        const { limit, page } = req.query;
+        const parsedLimit = limit ? parseInt(limit, 10) : 50;
+        const offset = page ? (parseInt(page, 10) - 1) * parsedLimit : 0;
+
+        const result = await MessageModel.getMessagesByOrder(orderId, { limit: parsedLimit, offset });
+        return res.status(200).json({ status: true, result });
+    } catch (error) {
+        console.error('Error getOrderMessages:', error);
+        return res.status(500).json({ status: false, message: 'Internal Server Error' });
+    }
+}
+
+async function postOrderMessage(req, res) {
+    try {
+        const orderId = parseInt(req.params.id, 10);
+        if (isNaN(orderId)) return res.status(400).json({ status: false, message: 'Invalid order id' });
+
+        const { senderType, senderId, body } = req.body;
+        if (!senderType || !body) {
+            return res.status(400).json({ status: false, message: 'senderType, body are required' });
+        }
+        if (!['client', 'driver'].includes(senderType)) {
+            return res.status(400).json({ status: false, message: "senderType must be 'client' or 'driver'" });
+        }
+
+        const message = await MessageModel.addMessage({ orderId, senderType, senderId: senderId ?? null, body });
+
+        const io = req.app.get('io');
+        if (io) io.to(`order:${orderId}`).emit('chat:message', message);
+
+        return res.status(201).json({ status: true, result: message });
+    } catch (error) {
+        console.error('Error postOrderMessage:', error);
+        return res.status(500).json({ status: false, message: 'Internal Server Error' });
+    }
+}
+
 module.exports = {
     getOrderPrice,
     createOrder,
@@ -219,4 +336,9 @@ module.exports = {
     updateOrderStatus,
     getOrderLogs,
     getOrderTrack,
+    createReview,
+    getReviewsByTaxi,
+    getReviewsByUser,
+    getOrderMessages,
+    postOrderMessage,
 };
