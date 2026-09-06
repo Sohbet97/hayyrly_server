@@ -17,8 +17,8 @@ async function createNewTaksi(req,res) {
             taksiPark
         } = req.body;
 
-        const avatar = req.files?.[0]?.savedPath ?? null;
-        const carImage = req.files?.[1]?.savedPath ?? null;
+        const avatar = req.files?.avatar?.[0]?.savedPath ?? null;
+        const carImage = req.files?.carImage?.[0]?.savedPath ?? null;
 
         if(!firstName || !lastName || !phone || !birthday || !userId || !cityId || !autoNumber || !markaId || !modelId || !autoYear) {
             return res.status(409).json({
@@ -100,13 +100,51 @@ async function deleteTaksi(req,res) {
     
 }
 
-async function updateTaksi(req,res) { 
+async function updateTaksi(req,res) {
     try {
-        
+        const id = req.params.id;
+        if(!id) {
+            return res.status(409).json({
+                status: false,
+                message: 'Id Required'
+            });
+        }
+
+        const {
+            firstName,
+            lastName,
+            phone,
+            birthday,
+            cityId,
+            autoNumber,
+            markaId,
+            modelId,
+            autoYear,
+        } = req.body;
+
+        const avatar = req.files?.avatar?.[0]?.savedPath ?? undefined;
+        const carImage = req.files?.carImage?.[0]?.savedPath ?? undefined;
+
+        const newData = {
+            firstName, lastName, phone, birthday, cityId, autoNumber, markaId, modelId, autoYear,
+            avatar, carImage,
+        };
+
+        const result = await TaksiModel.updateTaksi({ taksiId: id, newData });
+        if (!result) return res.status(404).json({ status: false, message: 'Taksi not found' });
+
+        return res.status(200).json({
+            status: true,
+            result
+        });
     } catch (error) {
-        
+        console.error('Error Update Taksi: ', error);
+        return res.status(500).json({
+            status: false,
+            message: 'Internal Server Error'
+        });
     }
-    
+
 }
 
 async function getTaksiByUserId(req, res) {

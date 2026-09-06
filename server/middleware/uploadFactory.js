@@ -39,6 +39,7 @@ function uploadFactory({
     baseFolder,
     fieldName = 'media',
     maxCount = 10,
+    fields,
     maxFileSize = 100 * 1024 * 1024,
     imageWidth = 1280,
     imageQuality = 85
@@ -69,7 +70,13 @@ function uploadFactory({
             req.files = [req.file];
         }
 
-        if (!req.files || req.files.length === 0) {
+        const fileList = Array.isArray(req.files)
+            ? req.files
+            : req.files
+                ? Object.values(req.files).flat()
+                : [];
+
+        if (fileList.length === 0) {
             next();
             return;
         }
@@ -82,7 +89,7 @@ function uploadFactory({
 
             await fs.promises.mkdir(dir, { recursive: true });
 
-            await Promise.all(req.files.map(async (file) => {
+            await Promise.all(fileList.map(async (file) => {
                 const fileKind = getFileKind(file);
                 const savedPathPrefix = `uploads/${baseFolder}/${year}/${month}`;
 
@@ -122,9 +129,11 @@ function uploadFactory({
         }
     };
 
-    const uploadMiddleware = maxCount === 1
-        ? upload.single(fieldName)
-        : upload.array(fieldName, maxCount);
+    const uploadMiddleware = fields
+        ? upload.fields(fields)
+        : maxCount === 1
+            ? upload.single(fieldName)
+            : upload.array(fieldName, maxCount);
 
     return [uploadMiddleware, processMedia];
 }

@@ -32,13 +32,15 @@ async function updateuserData(req, res) {
         const userId = req.params.id;
         const {
             fullName,
+            cityId,
         } = req.body;
 
-        const avatar = req.files?.[0]?.savedPath ?? null;
+        const avatar = req.files?.[0]?.savedPath ?? undefined;
 
         const data = {
             fullName: fullName,
-            avatar: avatar
+            avatar: avatar,
+            cityId: cityId,
         }
 
         const result = await UserModel.updateuserData(userId, data);

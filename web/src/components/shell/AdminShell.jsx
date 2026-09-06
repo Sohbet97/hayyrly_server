@@ -1,20 +1,68 @@
-import { useNavigate } from 'react-router-dom'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
-import { Map, Package, LayoutGrid, Users, UserCircle, BarChart2, Wallet, Settings, LogOut, Sun, Moon, Search } from 'lucide-react'
+import { Map as MapIcon, Package, LayoutGrid, Users, UserCircle, BarChart2, Wallet, HandCoins, ShieldAlert, MessageCircle, Settings, LogOut, Sun, Moon, Search, X } from 'lucide-react'
 import { useTZ } from '../../design/tokens.js'
 import { useApi } from '../../api/useApi.js'
 import { listOrders } from '../../api/orders.js'
+import { listBalanceRequests } from '../../api/balanceRequests.js'
+import { listSosAlerts } from '../../api/sos.js'
+import { listSupportThreads } from '../../api/support.js'
+import { getSocket, registerAdmin } from '../../api/socket.js'
 import { setLang, toggleTheme } from '../../store/uiSlice.js'
 import hayyrlyLogo from '../../assets/hayyrly-logo.png'
 
+let alertAudioCtx = null
+
+// Soft bell chime, no audio asset needed — a fundamental + quiet overtone
+// with a gentle exponential decay, like a notification bell rather than a siren.
+function playChime(strikeOffsets, freq, overtoneFreq) {
+  const Ctx = window.AudioContext || window.webkitAudioContext
+  if (!Ctx) return
+  if (!alertAudioCtx) alertAudioCtx = new Ctx()
+  if (alertAudioCtx.state === 'suspended') alertAudioCtx.resume()
+
+  const ctx = alertAudioCtx
+  const now = ctx.currentTime
+
+  function strike(time, f, peak, duration) {
+    const osc  = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(f, time)
+    gain.gain.setValueAtTime(0, time)
+    gain.gain.linearRampToValueAtTime(peak, time + 0.015)
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + duration)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start(time)
+    osc.stop(time + duration + 0.05)
+  }
+
+  strikeOffsets.forEach(offset => {
+    strike(now + offset, freq, 0.16, 0.9)         // fundamental
+    strike(now + offset, overtoneFreq, 0.05, 0.6) // soft overtone
+  })
+}
+
+// SOS — two strikes, more urgent.
+const playSosRing = () => playChime([0, 0.42], 987.77, 1975.5)     // B5 + B6
+// Support — single, softer strike.
+const playSupportChime = () => playChime([0], 783.99, 1567.98)     // G5 + G6
+// New order — single, lower strike, distinct from support's chime.
+const playOrderChime = () => playChime([0], 659.25, 1318.51)       // E5 + E6
+
 const MAIN_NAV = [
-  { id: 'map',       tk: 'Karta',         ru: 'Карта',          Icon: Map        },
+  { id: 'map',       tk: 'Karta',         ru: 'Карта',          Icon: MapIcon    },
   { id: 'orders',    tk: 'Sargytlar',     ru: 'Заказы',         Icon: Package    },
   { id: 'board',     tk: 'Status tagtasy',ru: 'Доска статусов', Icon: LayoutGrid },
   { id: 'drivers',   tk: 'Sürüjiler',     ru: 'Водители',       Icon: Users      },
   { id: 'clients',   tk: 'Müşderiler',    ru: 'Клиенты',        Icon: UserCircle },
   { id: 'analytics', tk: 'Analitika',     ru: 'Аналитика',      Icon: BarChart2  },
   { id: 'payments',  tk: 'Töleg',         ru: 'Платежи',        Icon: Wallet     },
+  { id: 'balance-requests', tk: 'Balans dolduryş', ru: 'Пополнения',   Icon: HandCoins },
+  { id: 'sos',       tk: 'SOS signallar', ru: 'SOS-сигналы',   Icon: ShieldAlert },
+  { id: 'support',   tk: 'Goldaw',        ru: 'Поддержка',     Icon: MessageCircle },
 ]
 
 function NavItem({ id, label, Icon, active, badge, onClick }) {
@@ -47,12 +95,18 @@ function NavItem({ id, label, Icon, active, badge, onClick }) {
   )
 }
 
-function AdminSidebar({ page, user, onLogout }) {
+function AdminSidebar({ page, user, onLogout, sosVersion, supportVersion, orderVersion }) {
   const lang = useSelector(state => state.ui.lang)
   const TZ = useTZ()
   const navigate = useNavigate()
-  const { data } = useApi(() => listOrders({ status: 'created', limit: 1 }), [])
+  const { data } = useApi(() => listOrders({ status: 'created', limit: 1 }), [orderVersion])
   const pendingOrders = data?.total ?? 0
+  const { data: balanceReqData } = useApi(() => listBalanceRequests({ status: 'pending', limit: 1 }), [])
+  const pendingBalanceRequests = balanceReqData?.total ?? 0
+  const { data: sosData } = useApi(() => listSosAlerts({ status: 'open', limit: 1 }), [sosVersion])
+  const openSosAlerts = sosData?.total ?? 0
+  const { data: supportData } = useApi(() => listSupportThreads({ limit: 100 }), [supportVersion])
+  const unreadSupport = (supportData?.data ?? []).reduce((sum, th) => sum + Number(th.unread_count || 0), 0)
   const goTo = id => navigate(`/${id}`)
 
   return (
@@ -80,11 +134,18 @@ function AdminSidebar({ page, user, onLogout }) {
           {lang === 'ru' ? 'Управление' : 'Dolandyryş'}
         </div>
 
-        {MAIN_NAV.map(({ id, tk, ru, Icon }) => (
-          <NavItem key={id} id={id} label={lang === 'ru' ? ru : tk} Icon={Icon}
-            active={page} badge={id === 'orders' && pendingOrders > 0 ? pendingOrders : null}
-            onClick={goTo} />
-        ))}
+        {MAIN_NAV.map(({ id, tk, ru, Icon }) => {
+          const badge =
+            id === 'orders' && pendingOrders > 0 ? pendingOrders :
+            id === 'balance-requests' && pendingBalanceRequests > 0 ? pendingBalanceRequests :
+            id === 'sos' && openSosAlerts > 0 ? openSosAlerts :
+            id === 'support' && unreadSupport > 0 ? unreadSupport :
+            null
+          return (
+            <NavItem key={id} id={id} label={lang === 'ru' ? ru : tk} Icon={Icon}
+              active={page} badge={badge} onClick={goTo} />
+          )
+        })}
 
         {/* Settings — separated */}
         <div style={{ marginTop: 6, paddingTop: 8, borderTop: `1px solid ${TZ.lineSoft}` }}>
@@ -189,17 +250,180 @@ function AdminTopbar({ title, subtitle, actions }) {
   )
 }
 
-export function AdminShell({ children, active, title, subtitle, user, onLogout, actions }) {
+function AlertToasts({ toasts, onDismiss, onView }) {
   const TZ = useTZ()
+  if (toasts.length === 0) return null
+
+  const KINDS = {
+    sos: {
+      color: TZ.red, colorSoft: TZ.redSoft, Icon: ShieldAlert, title: 'New SOS alert',
+      body: item => (
+        <>
+          <div style={{ fontFamily: TZ.mono, fontSize: 12.5, fontWeight: 600, color: TZ.body, marginTop: 2 }}>
+            {item.phone}
+          </div>
+          {item.note && (
+            <div style={{ fontFamily: TZ.sans, fontSize: 12, color: TZ.muted, marginTop: 2,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.note}</div>
+          )}
+        </>
+      ),
+    },
+    support: {
+      color: TZ.navy, colorSoft: TZ.navySoft, Icon: MessageCircle, title: 'New support message',
+      body: item => (
+        <>
+          <div style={{ fontFamily: TZ.sans, fontSize: 12.5, fontWeight: 600, color: TZ.body, marginTop: 2 }}>
+            {`User #${item.user_id}`}
+          </div>
+          <div style={{ fontFamily: TZ.sans, fontSize: 12, color: TZ.muted, marginTop: 2,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {item.message || (item.photo_url ? '📷' : '')}
+          </div>
+        </>
+      ),
+    },
+    order: {
+      color: TZ.orange, colorSoft: TZ.orangeSoft, Icon: Package, title: 'New order',
+      body: item => (
+        <>
+          <div style={{ fontFamily: TZ.sans, fontSize: 12.5, fontWeight: 600, color: TZ.body, marginTop: 2 }}>
+            {`Order #${item.id}`}
+          </div>
+          <div style={{ fontFamily: TZ.sans, fontSize: 12, color: TZ.muted, marginTop: 2,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {item.start_address}
+          </div>
+        </>
+      ),
+    },
+  }
+
   return (
-    <div className="flex h-full overflow-hidden" style={{ background: TZ.surface2 }}>
-      <AdminSidebar page={active} user={user} onLogout={onLogout} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        <AdminTopbar title={title} subtitle={subtitle} actions={actions} />
-        <main className="flex-1 min-h-0 overflow-hidden">
-          {children}
-        </main>
-      </div>
+    <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 10000,
+      display: 'flex', flexDirection: 'column', gap: 8, width: 320 }}>
+      {toasts.map(item => {
+        const kind = KINDS[item.kind]
+        return (
+          <div key={item._key} style={{ background: TZ.surface, border: `1px solid ${kind.color}`,
+            borderRadius: 12, padding: '12px 14px', boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+            display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ display: 'flex', width: 28, height: 28, borderRadius: 8, background: kind.colorSoft,
+              color: kind.color, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <kind.Icon size={15} />
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: TZ.sans, fontSize: 13, fontWeight: 700, color: TZ.ink }}>
+                {kind.title}
+              </div>
+              {kind.body(item)}
+              <button type="button" onClick={() => onView(item)}
+                style={{ marginTop: 8, border: 0, borderRadius: 7, padding: '5px 10px', cursor: 'pointer',
+                  background: kind.color, color: '#fff', fontFamily: TZ.sans, fontSize: 12, fontWeight: 700 }}>
+                View
+              </button>
+            </div>
+            <button type="button" onClick={() => onDismiss(item._key)}
+              style={{ background: 'none', border: 0, cursor: 'pointer', color: TZ.faint, padding: 2, flexShrink: 0 }}>
+              <X size={15} />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
+}
+
+const HeaderContext = createContext(() => {})
+
+export function AdminLayout({ user, onLogout }) {
+  const TZ = useTZ()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const active = location.pathname.split('/')[1] || 'map'
+  const [header, setHeader] = useState({ title: '', subtitle: '', actions: null })
+  const [sosVersion, setSosVersion] = useState(0)
+  const [supportVersion, setSupportVersion] = useState(0)
+  const [orderVersion, setOrderVersion] = useState(0)
+  const [toasts, setToasts] = useState([])
+  const toastTimers = useRef(new Map())
+
+  const TOAST_LIFETIME_MS = 8000
+
+  function dismissToast(key) {
+    clearTimeout(toastTimers.current.get(key))
+    toastTimers.current.delete(key)
+    setToasts(t => t.filter(x => x._key !== key))
+  }
+
+  function pushToast(toast) {
+    setToasts(t => [...t, toast])
+    toastTimers.current.set(toast._key, setTimeout(() => dismissToast(toast._key), TOAST_LIFETIME_MS))
+  }
+
+  // Global — mounted once for the whole admin session, so these fire
+  // regardless of which page is open (server/socket/sosSocket.js: 'sos:alert',
+  // server/socket/supportSocket.js: 'support:message', server/socket/orderSocket.js: 'order:new').
+  useEffect(() => {
+    registerAdmin()
+    const socket = getSocket()
+
+    const onSosAlert = (alert) => {
+      setSosVersion(v => v + 1)
+      pushToast({ ...alert, kind: 'sos', _key: `sos-${alert.id}-${Date.now()}` })
+      playSosRing()
+    }
+    // admin:support only ever receives user-sent messages (admin replies go
+    // out over REST — see server/modules/admin/controllers/supportController.js).
+    const onSupportMessage = (row) => {
+      if (row.sender_type === 'admin') return
+      setSupportVersion(v => v + 1)
+      pushToast({ ...row, kind: 'support', _key: `support-${row.id}-${Date.now()}` })
+      playSupportChime()
+    }
+    const onOrderNew = (order) => {
+      setOrderVersion(v => v + 1)
+      pushToast({ ...order, kind: 'order', _key: `order-${order.id}-${Date.now()}` })
+      playOrderChime()
+    }
+
+    socket.on('sos:alert', onSosAlert)
+    socket.on('support:message', onSupportMessage)
+    socket.on('order:new', onOrderNew)
+    return () => {
+      socket.off('sos:alert', onSosAlert)
+      socket.off('support:message', onSupportMessage)
+      socket.off('order:new', onOrderNew)
+      toastTimers.current.forEach(clearTimeout)
+      toastTimers.current.clear()
+    }
+  }, [])
+
+  function viewToast(item) {
+    dismissToast(item._key)
+    navigate(item.kind === 'sos' ? '/sos' : item.kind === 'support' ? '/support' : '/orders')
+  }
+
+  return (
+    <div className="flex h-full overflow-hidden" style={{ background: TZ.surface2 }}>
+      <AdminSidebar page={active} user={user} onLogout={onLogout}
+        sosVersion={sosVersion} supportVersion={supportVersion} orderVersion={orderVersion} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+        <AdminTopbar title={header.title} subtitle={header.subtitle} actions={header.actions} />
+        <main className="flex-1 min-h-0 overflow-hidden">
+          <HeaderContext.Provider value={setHeader}>
+            <Outlet />
+          </HeaderContext.Provider>
+        </main>
+      </div>
+      <AlertToasts toasts={toasts} onDismiss={dismissToast} onView={viewToast} />
+    </div>
+  )
+}
+
+export function usePageHeader({ title, subtitle, actions }) {
+  const setHeader = useContext(HeaderContext)
+  useEffect(() => {
+    setHeader({ title, subtitle, actions })
+  })
 }

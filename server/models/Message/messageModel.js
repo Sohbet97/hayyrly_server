@@ -13,14 +13,16 @@ async function addMessage({ orderId, senderType, senderId, body }) {
     return rows[0];
 }
 
-async function getMessagesByOrder(orderId) {
+// pagination: { limit, offset }
+async function getMessagesByOrder(orderId, { limit = 200, offset = 0 } = {}) {
     const query = `
         SELECT id, order_id, sender_type, sender_id, body, created_at
         FROM app_data.order_messages
         WHERE order_id = $1
         ORDER BY created_at ASC
+        LIMIT $2 OFFSET $3
     `;
-    const rows = await sequelize.query(query, { bind: [orderId], type: sequelize.QueryTypes.SELECT });
+    const rows = await sequelize.query(query, { bind: [orderId, limit, offset], type: sequelize.QueryTypes.SELECT });
     return rows;
 }
 

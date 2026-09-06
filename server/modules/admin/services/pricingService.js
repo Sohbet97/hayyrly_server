@@ -23,6 +23,7 @@ class PricingService {
                 price_per_km: data.price_per_km,
                 free_wait_min: data.free_wait_min,
                 wait_price_min: data.wait_price_min,
+                commission_percent: data.commission_percent,
                 updated_at: new Date(),
                 updated_by: adminId,
             },
@@ -34,6 +35,7 @@ class PricingService {
                 price_per_km: data.price_per_km,
                 free_wait_min: data.free_wait_min,
                 wait_price_min: data.wait_price_min,
+                commission_percent: data.commission_percent,
                 updated_at: new Date(),
                 updated_by: adminId,
             });

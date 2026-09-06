@@ -20,6 +20,19 @@ class CityController {
             return res.status(201).json({ status: true, result });
         } catch (e) { next(e); }
     }
+
+    static async remove(req, res, next) {
+        try {
+            const deleted = await CityService.remove(req.params.id);
+            if (!deleted) throw ApiError.NotFound('City not found');
+            return res.status(200).json({ status: true });
+        } catch (e) {
+            if (e.name === 'SequelizeForeignKeyConstraintError') {
+                return next(ApiError.Conflict('City is still in use and cannot be deleted'));
+            }
+            next(e);
+        }
+    }
 }
 
 module.exports = CityController;

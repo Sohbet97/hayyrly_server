@@ -13,6 +13,11 @@ class CityService {
         const row = await City.create({ name_tm, name_ru, name_en });
         return row.get({ plain: true });
     }
+
+    static async remove(id) {
+        const deleted = await City.destroy({ where: { id } });
+        return deleted > 0;
+    }
 }
 
 module.exports = CityService;

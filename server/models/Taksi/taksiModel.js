@@ -90,9 +90,37 @@ async function getTaksis(filter) {
 
 }
 
-async function updateTaksi({ newData }) {
+async function updateTaksi({ taksiId, newData }) {
     try {
+        const {
+            firstName,
+            lastName,
+            phone,
+            birthday,
+            cityId,
+            autoNumber,
+            markaId,
+            modelId,
+            autoYear,
+            avatar,
+            carImage,
+        } = newData;
 
+        const fields = {};
+        if (firstName !== undefined)  fields.first_name  = firstName;
+        if (lastName !== undefined)   fields.last_name   = lastName;
+        if (phone !== undefined)      fields.phone       = phone;
+        if (birthday !== undefined)   fields.birthday    = birthday;
+        if (cityId !== undefined)     fields.city_id     = cityId;
+        if (autoNumber !== undefined) fields.auto_number = autoNumber;
+        if (markaId !== undefined)    fields.marka_id    = markaId;
+        if (modelId !== undefined)    fields.model_id    = modelId;
+        if (autoYear !== undefined)   fields.auto_year   = autoYear;
+        if (avatar !== undefined)     fields.avatar      = avatar;
+        if (carImage !== undefined)   fields.auto_image  = carImage;
+
+        const [, rows] = await Taxi.update(fields, { where: { id: taksiId }, returning: true });
+        return rows[0]?.get({ plain: true }) || null;
     } catch (error) {
         throw error;
     }

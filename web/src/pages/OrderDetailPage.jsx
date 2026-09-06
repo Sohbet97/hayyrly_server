@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { StatusPill, Avatar } from '../design/atoms.jsx'
 import { useTZ, STATUS } from '../design/tokens.js'
 import { useApi } from '../api/useApi.js'
@@ -32,20 +32,21 @@ export default function OrderDetailPage({ shell }) {
     ? `${order.driver_first_name ?? ''} ${order.driver_last_name ?? ''}`.trim()
     : null
 
+  usePageHeader({
+    title: `${t('orderDetail.title')} #${id}`,
+    subtitle: order ? new Date(order.created_at).toLocaleString() : '',
+    actions: (
+      <button type="button" onClick={() => navigate('/orders')}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+          border: `1px solid ${TZ.line}`, borderRadius: 8, background: TZ.surface,
+          fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body, cursor: 'pointer' }}>
+        <ArrowLeft size={13} /> {t('orderDetail.back')}
+      </button>
+    ),
+  })
+
   return (
-    <AdminShell {...shell}
-      active="orders"
-      title={`${t('orderDetail.title')} #${id}`}
-      subtitle={order ? new Date(order.created_at).toLocaleString() : ''}
-      actions={
-        <button type="button" onClick={() => navigate('/orders')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-            border: `1px solid ${TZ.line}`, borderRadius: 8, background: TZ.surface,
-            fontFamily: TZ.sans, fontSize: 12, fontWeight: 600, color: TZ.body, cursor: 'pointer' }}>
-          <ArrowLeft size={13} /> {t('orderDetail.back')}
-        </button>
-      }
-    >
+    <>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '14px 16px', gap: 12, overflow: 'hidden' }}>
 
         {loading && <div style={{ padding: 16, fontFamily: TZ.sans, fontSize: 13, color: TZ.muted }}>{t('common.loading')}</div>}
@@ -134,7 +135,7 @@ export default function OrderDetailPage({ shell }) {
           </>
         )}
       </div>
-    </AdminShell>
+    </>
   )
 }
 

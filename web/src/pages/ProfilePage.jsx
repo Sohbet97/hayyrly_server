@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { useTZ } from '../design/tokens.js'
 import { updateProfile } from '../api/auth.js'
 import { useT } from '../i18n/useT.js'
@@ -159,13 +159,15 @@ export default function ProfilePage({ shell }) {
   const t = useT()
   const { user, onUserUpdate } = shell
 
+  usePageHeader({ title: t('profile.title') })
+
   return (
-    <AdminShell {...shell} active="profile" title={t('profile.title')}>
+    <>
       <div style={{ height: '100%', overflowY: 'auto', padding: '24px 32px' }}>
         <AccountInfo t={t} user={user} onUserUpdate={onUserUpdate} />
         <div style={{ height: 1, background: TZ.line, maxWidth: 580, margin: '24px 0' }} />
         <ChangePassword t={t} />
       </div>
-    </AdminShell>
+    </>
   )
 }

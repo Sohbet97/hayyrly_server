@@ -281,7 +281,9 @@ emit("order:watch", { "orderId": 42 })
 
 ---
 
-### 9. Söhbetdeşlik (Passenger/Driver/Admin → Server)
+### 9. Söhbetdeşlik — sargyt çaty (Passenger ↔ Driver → Server)
+
+> Sargyt çaty diňe **client ↔ driver** üçin. Admin bu çata ýazyp bilmeýär — diňe `GET /api/admin/orders/:id/messages` arkaly gözegçilik üçin okaýar. Admin ulanyjy bilen gürleşmek üçin aşakdaky **10-njy bölümdäki** goldaw çatyny ulanýar.
 
 ```json
 emit("chat:send", {
@@ -290,8 +292,8 @@ emit("chat:send", {
   "senderId":   7,
   "body":       "Salam, men gapyň öňünde"
 })
-// senderType: "client" | "driver" | "admin"
-// senderId — ugradyjynyň users.id ýa-da taxies.id-si (admin üçin admin_users.id, REST arkaly iberilende)
+// senderType: "client" | "driver"  (admin bu event-i ulanyp bilmeýär)
+// senderId — ugradyjynyň users.id ýa-da taxies.id-si
 ```
 
 Sargyt otagyndaky ähliler alýar:
@@ -306,7 +308,85 @@ on("chat:message", {
 })
 ```
 
-> Admin panelinden iberilen habarlar REST arkaly (`POST /api/admin/orders/:id/messages`) ýazylýar we şol bir `order:${orderId}` otagyna `chat:message` hökmünde ýaýradylýar.
+---
+
+### 10. Goldaw çaty — user ↔ admin (Söhbetdeşlik order-a bagly däl)
+
+> Ulanyjynyň admin bilen ýeke-täk, üznüksiz gürrüňdeşlik dessesi (thread). Sargyda bagly däl — balans, şikaýat we ş.m. üçin.
+
+```json
+emit("support:watch", { "userId": 7 })
+// Ulanyjy öz thread otagyna birikýär, admin jogaplaryny göni alar ýaly
+```
+
+```json
+emit("support:send", {
+  "userId":   7,
+  "message":  "Salam, kömek gerek",
+  "photoUrl": null
+})
+// message ýa-da photoUrl-yň biri hökmany
+```
+
+Ulanyja we `admin:support` otagyndaky adminlere ýaýradylýar:
+```json
+on("support:message", {
+  "id":          3,
+  "user_id":     7,
+  "sender_type": "user",
+  "sender_id":   7,
+  "message":     "Salam, kömek gerek",
+  "photo_url":   null,
+  "is_read":     false,
+  "created_at":  "2026-07-23T10:15:00.000Z"
+})
+```
+
+> Admin jogaby REST arkaly (`POST /api/admin/support/:userId/messages`) ýazylýar we şol bir `support:user:${userId}` + `admin:support` otaglaryna ýaýradylýar. Taryhy almak: `GET /api/support/user/:userId/messages` (ulanyjy) / `GET /api/admin/support/:userId/messages` (admin, tredler sanawy: `GET /api/admin/support`).
+
+---
+
+### 11. SOS signaly (Passenger/Driver → Server)
+
+```json
+emit("sos:trigger", {
+  "orderId": 42,
+  "userId":  7,
+  "taxiId":  1,
+  "phone":   "+99361000000",
+  "note":    "emergency",
+  "lat":     37.9601,
+  "lng":     58.3794
+})
+// orderId, userId, taxiId — optional (aktiw sargyt bolmasa hem iberilip bilner)
+// note — erkin tekst, mysal üçin: emergency, fire, police...
+```
+
+Iberen kliente jogap:
+```json
+on("sos:triggered", {
+  "id": 3, "order_id": 42, "user_id": 7, "taxi_id": 1,
+  "phone": "+99361000000", "note": "emergency", "status": "open",
+  "lat": 37.9601, "lng": 58.3794, "created_at": "2026-07-23T10:15:00.000Z"
+})
+```
+
+`admin:sos` otagyna birikdirilen admin panel sokletlerine ýaýradylýar:
+```json
+on("sos:alert", { ...ýokardaky SOS obýekti... })
+```
+
+REST arkaly hem iberip bolýar (soket ýok bolsa): `POST /api/sos` (şol bir body).
+
+**Admin panel — SOS we goldaw çaty otaglaryna goşulmak (bir gezek, birikende):**
+```json
+emit("admin:register", { "token": "ADMIN_JWT_HERE" })
+```
+```json
+on("admin:registered", { "adminId": 1 })
+// Awtomatik "admin:sos" we "admin:support" otaglaryna goşulýar
+```
+> Admin panelinden SOS sanawyny görmek/ýapmak REST arkaly: `GET /api/admin/sos`, `PUT /api/admin/sos/:id/status`.
 
 ---
 
@@ -320,6 +400,14 @@ on("order:error", {
 
 on("taxi:error", {
   "message": "Not registered. Send taxi:register first"
+})
+
+on("sos:error", {
+  "message": "phone, lat, lng are required"
+})
+
+on("support:error", {
+  "message": "userId and (message or photoUrl) are required"
 })
 ```
 

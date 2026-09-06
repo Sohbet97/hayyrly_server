@@ -1,19 +1,10 @@
 const MessageModel = require('../../../models/Message/messageModel');
 
+// Read-only: admins view order chat (driver↔client) for oversight only — see
+// modules/admin/controllers/messageController.js.
 class MessageService {
     static async listByOrder(orderId) {
         return MessageModel.getMessagesByOrder(orderId);
-    }
-
-    static async create({ orderId, senderId, body, io }) {
-        const message = await MessageModel.addMessage({
-            orderId,
-            senderType: 'admin',
-            senderId,
-            body,
-        });
-        if (io) io.to(`order:${orderId}`).emit('chat:message', message);
-        return message;
     }
 }
 

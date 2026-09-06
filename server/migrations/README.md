@@ -15,6 +15,13 @@ psql "$DATABASE_URL" -f migrations/005_admin_settings.sql
 psql "$DATABASE_URL" -f migrations/006_payments.sql
 psql "$DATABASE_URL" -f migrations/007_users_block.sql
 psql "$DATABASE_URL" -f migrations/008_order_messages.sql
+psql "$DATABASE_URL" -f migrations/009_order_reviews.sql
+psql "$DATABASE_URL" -f migrations/010_sos_alerts.sql
+psql "$DATABASE_URL" -f migrations/011_balance_requests.sql
+psql "$DATABASE_URL" -f migrations/012_users_city.sql
+psql "$DATABASE_URL" -f migrations/013_support_messages.sql
+psql "$DATABASE_URL" -f migrations/014_pricing_commission.sql
+psql "$DATABASE_URL" -f migrations/015_balance_allow_negative.sql
 ```
 
 Or, using the discrete `DB_*` env vars already required by the app:

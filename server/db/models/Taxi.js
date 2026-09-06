@@ -23,7 +23,9 @@ module.exports = (sequelize, DataTypes) => {
                 this.setDataValue('is_active', value ? 1 : 0);
             },
         },
-        park: { type: DataTypes.TEXT },
+        // Real column is boolean ("belongs to a taxi park/fleet"), not the free-text
+        // fleet name that driver_applications.park holds — don't assign a string here.
+        park: { type: DataTypes.BOOLEAN },
     }, {
         timestamps: false,
     });

@@ -95,9 +95,13 @@ export const STATUS = {
   busy:      { ru: 'Занят',     tk: 'Meşgul',     ck: 'amber',  bk: 'amberSoft' },
   offline:   { ru: 'Офлайн',    tk: 'Oflaýn',     ck: 'muted',  bk: 'surface3' },
   approved:  { ru: 'Одобрено',  tk: 'Tassyklandy', ck: 'green', bk: 'greenSoft' },
+  confirmed: { ru: 'Подтверждено', tk: 'Tassyklandy', ck: 'green', bk: 'greenSoft' },
   rejected:  { ru: 'Отклонено', tk: 'Ret edildi', ck: 'red',   bk: 'redSoft' },
   paid:      { ru: 'Оплачено',  tk: 'Tölendi',    ck: 'green', bk: 'greenSoft' },
   refunded:  { ru: 'Возвращено', tk: 'Yzyna gaýtaryldy', ck: 'red', bk: 'redSoft' },
+  open:          { ru: 'Открыт',           tk: 'Açyk',        ck: 'red',   bk: 'redSoft' },
+  acknowledged:  { ru: 'В работе',         tk: 'Işde',        ck: 'amber', bk: 'amberSoft' },
+  resolved:      { ru: 'Решён',            tk: 'Çözüldi',     ck: 'green', bk: 'greenSoft' },
 }
 
 export function statusColors(s) {

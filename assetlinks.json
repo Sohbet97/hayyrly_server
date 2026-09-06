@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "tm.com.hayyrly.mobile_client",
+    "sha256_cert_fingerprints": ["33:C2:F4:FC:E4:4C:05:6B:42:23:BE:C9:91:26:F6:95:89:08:25:ED:7C:C1:76:22:11:E2:CE:06:44:50:97:69"]
+  }
+}]

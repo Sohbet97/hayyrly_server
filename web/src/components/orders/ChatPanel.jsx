@@ -7,7 +7,10 @@ import { listMessages, sendMessage } from '../../api/orders.js'
 
 const SENDER_KEY = { admin: 'senderAdmin', client: 'senderClient', driver: 'senderDriver' }
 
-export function ChatPanel({ orderId }) {
+// Order chat is driver↔client only — admin can't post into it (see server/socket/orderSocket.js),
+// so this panel renders read-only for the admin web app. Admins message users through the
+// separate support chat instead.
+export function ChatPanel({ orderId, readOnly = true }) {
   const TZ = useTZ()
   const t = useT()
   const [messages, setMessages] = useState([])
@@ -81,20 +84,27 @@ export function ChatPanel({ orderId }) {
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: `1px solid ${TZ.lineSoft}`, flexShrink: 0 }}>
-        <input value={text} onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-          placeholder={t('chat.placeholder')}
-          style={{ flex: 1, border: `1px solid ${TZ.line}`, borderRadius: 8, padding: '8px 12px',
-            outline: 'none', background: TZ.surface, fontFamily: TZ.sans, fontSize: 13, color: TZ.ink }} />
-        <button type="button" onClick={send} disabled={sending || !text.trim()}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: 0,
-            borderRadius: 8, background: TZ.navy, color: '#fff', cursor: sending ? 'default' : 'pointer',
-            opacity: sending || !text.trim() ? 0.6 : 1,
-            fontFamily: TZ.sans, fontSize: 12.5, fontWeight: 600 }}>
-          <Send size={13} /> {t('chat.send')}
-        </button>
-      </div>
+      {readOnly ? (
+        <div style={{ padding: 12, borderTop: `1px solid ${TZ.lineSoft}`, flexShrink: 0,
+          textAlign: 'center', fontFamily: TZ.sans, fontSize: 11.5, color: TZ.faint }}>
+          {t('chat.readOnly')}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: `1px solid ${TZ.lineSoft}`, flexShrink: 0 }}>
+          <input value={text} onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+            placeholder={t('chat.placeholder')}
+            style={{ flex: 1, border: `1px solid ${TZ.line}`, borderRadius: 8, padding: '8px 12px',
+              outline: 'none', background: TZ.surface, fontFamily: TZ.sans, fontSize: 13, color: TZ.ink }} />
+          <button type="button" onClick={send} disabled={sending || !text.trim()}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: 0,
+              borderRadius: 8, background: TZ.navy, color: '#fff', cursor: sending ? 'default' : 'pointer',
+              opacity: sending || !text.trim() ? 0.6 : 1,
+              fontFamily: TZ.sans, fontSize: 12.5, fontWeight: 600 }}>
+            <Send size={13} /> {t('chat.send')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

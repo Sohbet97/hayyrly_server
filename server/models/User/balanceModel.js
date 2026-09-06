@@ -105,7 +105,12 @@ async function addBalanceInUser(data) {
     }
 }
 
-async function removeBalanceInUSer(data) {
+// allowNegative: true lets the balance go below zero (debt) — used only for cash-ride
+// commission, where the platform's cut must be collected even if the driver has no funds.
+// Every other caller keeps the old "insufficient funds" guard, now enforced in application
+// code (row-locked via SELECT ... FOR UPDATE) since app_data.balance no longer has a
+// DB-level CHECK against negative values (see migrations/015_balance_allow_negative.sql).
+async function removeBalanceInUSer(data, { allowNegative = false } = {}) {
     try {
         const {
             userId,
@@ -116,11 +121,28 @@ async function removeBalanceInUSer(data) {
         } = data;
 
         const result = await sequelize.transaction(async (t) => {
-            const balanceRows = await sequelize.query(
+            await sequelize.query(
                 `INSERT INTO app_data.balance (user_id, price)
-                 VALUES ($1, $2)
-                 ON CONFLICT (user_id)
-                 DO UPDATE SET price = balance.price - EXCLUDED.price
+                 VALUES ($1, 0)
+                 ON CONFLICT (user_id) DO NOTHING;`,
+                { bind: [userId], transaction: t }
+            );
+
+            if (!allowNegative) {
+                const [current] = await sequelize.query(
+                    `SELECT price FROM app_data.balance WHERE user_id = $1 FOR UPDATE;`,
+                    { bind: [userId], type: sequelize.QueryTypes.SELECT, transaction: t }
+                );
+
+                if (Number(current.price) < Number(price)) {
+                    throw new Error('Операция отклонена: недостаточно средств на балансе.');
+                }
+            }
+
+            const balanceRows = await sequelize.query(
+                `UPDATE app_data.balance
+                 SET price = price - $2
+                 WHERE user_id = $1
                  RETURNING *;`,
                 { bind: [userId, price], type: sequelize.QueryTypes.SELECT, transaction: t }
             );
@@ -142,6 +164,10 @@ async function removeBalanceInUSer(data) {
 
         return result;
     } catch (error) {
+        if (error.message === 'Операция отклонена: недостаточно средств на балансе.') {
+            throw error;
+        }
+
         const normalized = normalizePgError(error);
 
         if (normalized.code === '23514') {

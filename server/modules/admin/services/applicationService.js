@@ -59,7 +59,9 @@ class ApplicationService {
                 auto_year: app.auto_year,
                 auto_image: app.car_image,
                 is_active: true,
-                park: app.park,
+                // taxies.park is a boolean ("belongs to a park/fleet"); the application's
+                // park is the free-text fleet name — presence of one implies the flag.
+                park: Boolean(app.park),
             }, { transaction: t });
 
             await User.update({ role: 'driver' }, { where: { id: app.user_id }, transaction: t });

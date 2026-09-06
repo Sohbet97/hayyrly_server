@@ -17,6 +17,8 @@ export default defineConfig(({ command }) => ({
       // Local backend API + realtime socket (see server/server.js, PORT defaults to 3000).
       '/api':        { target: 'http://localhost:3000', changeOrigin: true },
       '/socket.io':  { target: 'http://localhost:3000', changeOrigin: true, ws: true },
+      // Uploaded media (driver/car photos etc.) served statically by the backend.
+      '/uploads':    { target: 'http://localhost:3000', changeOrigin: true },
     },
   },
 }))

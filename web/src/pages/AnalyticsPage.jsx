@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { Download, TrendingDown, TrendingUp } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { Avatar } from '../design/atoms.jsx'
 import { useTZ } from '../design/tokens.js'
 import { useApi } from '../api/useApi.js'
@@ -157,12 +157,10 @@ export default function AnalyticsPage({ shell }) {
     URL.revokeObjectURL(url)
   }
 
-  return (
-    <AdminShell {...shell}
-      active="analytics"
-      title={t('analytics.title')}
-      subtitle={`${fromDate} — ${toDate}`}
-      actions={
+  usePageHeader({
+    title: t('analytics.title'),
+    subtitle: `${fromDate} — ${toDate}`,
+    actions: (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {/* Range presets */}
           <div style={{ display: 'flex', background: TZ.surface2, border: `1px solid ${TZ.line}`,
@@ -213,8 +211,11 @@ export default function AnalyticsPage({ shell }) {
             <Download size={13} /> {t('analytics.export')}
           </button>
         </div>
-      }
-    >
+    ),
+  })
+
+  return (
+    <>
       <div style={{ height: '100%', overflowY: 'auto', padding: 16, display: 'flex',
         flexDirection: 'column', gap: 12 }}>
 
@@ -427,6 +428,6 @@ export default function AnalyticsPage({ shell }) {
           </div>
         </div>
       </div>
-    </AdminShell>
+    </>
   )
 }

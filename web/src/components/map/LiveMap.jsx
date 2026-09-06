@@ -231,13 +231,14 @@ function applyDebugLayer(map, name) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function LiveMap({ style, onReady, debugLayer = '', drivers = [], orders = [], selectedOrder = null, track = [] }) {
+export default function LiveMap({ style, onReady, debugLayer = '', drivers = [], orders = [], selectedOrder = null, track = [], focusPoint = null }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const debugRef = useRef(debugLayer)
   debugRef.current = debugLayer
   const markersRef = useRef([])
   const endpointMarkersRef = useRef([])
+  const focusMarkerRef = useRef(null)
   const [error, setError] = useState(null)
   const [mapLoaded, setMapLoaded] = useState(false)
 
@@ -316,6 +317,23 @@ export default function LiveMap({ style, onReady, debugLayer = '', drivers = [],
     // Keyed on the order's identity + endpoint coords, not the object reference, since
     // MapPage recomputes `selectedOrder` on every live-position tick.
   }, [mapLoaded, selectedOrder?.id, selectedOrder?.startLat, selectedOrder?.startLng, selectedOrder?.endLat, selectedOrder?.endLng, track])
+
+  // Fly to + pin an arbitrary point (e.g. a SOS alert opened from another page).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+
+    focusMarkerRef.current?.remove()
+    focusMarkerRef.current = null
+    if (!focusPoint) return
+
+    focusMarkerRef.current = new maplibregl.Marker({ element: makeEl(34, TZ.orangeDk, '⚠️', true) })
+      .setLngLat([focusPoint.lng, focusPoint.lat])
+      .addTo(map)
+    map.flyTo({ center: [focusPoint.lng, focusPoint.lat], zoom: 16, duration: 600 })
+
+    return () => { focusMarkerRef.current?.remove(); focusMarkerRef.current = null }
+  }, [mapLoaded, focusPoint?.lat, focusPoint?.lng])
 
   // Re-apply when the selected table changes.
   useEffect(() => {

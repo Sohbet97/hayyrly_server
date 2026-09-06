@@ -45,9 +45,41 @@ async function request(path, { method = 'GET', body, params } = {}) {
   return data
 }
 
+async function upload(path, formData, method = 'POST') {
+  const url = new URL(`${API_BASE}/api/admin${path}`, window.location.origin)
+  const token = getToken()
+  const headers = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const res = await fetch(url, { method, headers, body: formData })
+
+  if (res.status === 401) {
+    setToken(null)
+    window.dispatchEvent(new Event('hayyrly:unauthorized'))
+  }
+
+  const data = await res.json().catch(() => ({}))
+
+  if (!res.ok || data.status === false) {
+    throw new Error(data.message || `Upload failed (${res.status})`)
+  }
+
+  return data
+}
+
 export const api = {
-  get:    (path, params)       => request(path, { method: 'GET', params }),
-  post:   (path, body, params) => request(path, { method: 'POST', body, params }),
-  put:    (path, body, params) => request(path, { method: 'PUT', body, params }),
-  delete: (path, params)       => request(path, { method: 'DELETE', params }),
+  get:      (path, params)       => request(path, { method: 'GET', params }),
+  post:     (path, body, params) => request(path, { method: 'POST', body, params }),
+  put:      (path, body, params) => request(path, { method: 'PUT', body, params }),
+  delete:   (path, params)       => request(path, { method: 'DELETE', params }),
+  upload,
+  putForm:  (path, formData)     => upload(path, formData, 'PUT'),
+}
+
+// Resolves a relative /uploads/... path (as returned by media endpoints) to a
+// fetchable URL. Absolute URLs are passed through untouched.
+export function mediaUrl(path) {
+  if (!path) return null
+  if (/^https?:\/\//.test(path)) return path
+  return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`
 }

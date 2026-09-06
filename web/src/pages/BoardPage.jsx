@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { MapPin, ArrowRight } from 'lucide-react'
-import { AdminShell } from '../components/shell/AdminShell.jsx'
+import { usePageHeader } from '../components/shell/AdminShell.jsx'
 import { Avatar } from '../design/atoms.jsx'
 import { AssignDriverMenu } from '../components/orders/AssignDriverMenu.jsx'
 import { useTZ, STATUS } from '../design/tokens.js'
@@ -79,12 +79,10 @@ export default function BoardPage({ shell }) {
     }
   }
 
+  usePageHeader({ title: t('board.title'), subtitle: t('board.subtitle') })
+
   return (
-    <AdminShell {...shell}
-      active="board"
-      title={t('board.title')}
-      subtitle={t('board.subtitle')}
-    >
+    <>
       {error && (
         <div style={{ padding: 16, fontFamily: TZ.sans, fontSize: 13, color: TZ.red }}>{error.message}</div>
       )}
@@ -213,7 +211,7 @@ export default function BoardPage({ shell }) {
           )
         })}
       </div>
-    </AdminShell>
+    </>
   )
 }
 
